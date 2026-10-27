@@ -139,6 +139,44 @@
             background: #f5f5f5;
         }
 
+        .palette-grid {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 6px;
+        }
+
+        .palette-button {
+            position: relative;
+            min-width: 0;
+            height: 38px;
+            border: 1px solid #343434;
+            border-radius: 9px;
+            padding: 4px;
+            background: #171717;
+            cursor: pointer;
+        }
+
+        .palette-button::before {
+            content: '';
+            display: block;
+            width: 100%;
+            height: 100%;
+            border-radius: 5px;
+            background: var(--palette-preview);
+        }
+
+        .palette-button[aria-pressed="true"] {
+            border-color: #f5f5f5;
+            box-shadow: 0 0 0 1px #f5f5f5 inset;
+        }
+
+        .palette-name {
+            color: #777;
+            font-size: 11px;
+            line-height: 1.2;
+            text-align: center;
+        }
+
         .monitor {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -285,6 +323,18 @@
                 </div>
             </div>
 
+            <div class="field">
+                <div class="field-title">Палітра</div>
+                <div class="palette-grid" aria-label="Палітра кольорів">
+                    <button class="palette-button" type="button" data-palette="warm" aria-pressed="true" aria-label="Тепла палітра" title="Тепла" style="--palette-preview:linear-gradient(135deg,#ff4d2e,#ff9b35,#ffd35a)"></button>
+                    <button class="palette-button" type="button" data-palette="cool" aria-pressed="false" aria-label="Холодна палітра" title="Холодна" style="--palette-preview:linear-gradient(135deg,#22d3ee,#3b82f6,#8b5cf6)"></button>
+                    <button class="palette-button" type="button" data-palette="pastel" aria-pressed="false" aria-label="Пастельна палітра" title="Пастельна" style="--palette-preview:linear-gradient(135deg,#ffc9de,#bfe5ff,#d7c7ff)"></button>
+                    <button class="palette-button" type="button" data-palette="neon" aria-pressed="false" aria-label="Неонова палітра" title="Неонова" style="--palette-preview:linear-gradient(135deg,#00ff9d,#00d9ff,#ff00d4)"></button>
+                    <button class="palette-button" type="button" data-palette="contrast" aria-pressed="false" aria-label="Контрастна палітра" title="Контрастна" style="--palette-preview:linear-gradient(135deg,#ff2d55 0 25%,#00e5ff 25% 50%,#ffe600 50% 75%,#8b5cf6 75%)"></button>
+                </div>
+                <div class="palette-name" id="paletteName">Тепла</div>
+            </div>
+
             <div class="monitor">
                 <div class="metric"><span>Event</span><strong id="eventValue">—</strong></div>
                 <div class="metric"><span>Note</span><strong id="noteValue">—</strong></div>
@@ -325,11 +375,14 @@
         const fullscreenButton = document.getElementById('fullscreenButton')
         const fullscreenIcon = document.getElementById('fullscreenIcon')
         const modeButtons = Array.from(document.querySelectorAll('.mode-button'))
+        const paletteButtons = Array.from(document.querySelectorAll('.palette-button'))
+        const paletteName = document.getElementById('paletteName')
         const context = canvas.getContext('2d', { alpha: false })
 
         let midiAccess = null
         let selectedInput = null
         let visualizationMode = 'spots'
+        let colorPalette = 'warm'
         let particles = []
         let strokes = []
         let rainDrops = []
@@ -342,9 +395,57 @@
 
         const noteNames = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B']
 
+        const palettes = {
+            warm: {
+                label: 'Тепла',
+                hues: [4, 18, 32, 44, 54, 350],
+                saturation: 90,
+                lightness: 62
+            },
+            cool: {
+                label: 'Холодна',
+                hues: [178, 192, 208, 224, 244, 268],
+                saturation: 88,
+                lightness: 64
+            },
+            pastel: {
+                label: 'Пастельна',
+                hues: [342, 18, 52, 154, 198, 262],
+                saturation: 58,
+                lightness: 78
+            },
+            neon: {
+                label: 'Неонова',
+                hues: [155, 182, 202, 282, 318, 56],
+                saturation: 100,
+                lightness: 62
+            },
+            contrast: {
+                label: 'Контрастна',
+                hues: [350, 188, 54, 268, 118, 24],
+                saturation: 96,
+                lightness: 60
+            }
+        }
+
         function noteName(note) {
             const octave = Math.floor(note / 12) - 1
             return `${noteNames[note % 12]}${octave}`
+        }
+
+        function paletteColor(note, offset = 0) {
+            const palette = palettes[colorPalette]
+            const index = Math.abs(note + offset) % palette.hues.length
+            return {
+                hue: palette.hues[index],
+                saturation: palette.saturation,
+                lightness: palette.lightness
+            }
+        }
+
+        function hsl(color, lightnessShift = 0, alpha = 1) {
+            const lightness = Math.max(0, Math.min(100, color.lightness + lightnessShift))
+            return `hsla(${color.hue}, ${color.saturation}%, ${lightness}%, ${alpha})`
         }
 
         function setStatus(connected, text) {
@@ -365,14 +466,18 @@
             context.fillRect(0, 0, width, height)
         }
 
-        function setVisualizationMode(mode) {
-            if (!['spots', 'lines', 'rain', 'aurora'].includes(mode)) return
-
-            visualizationMode = mode
+        function clearVisuals() {
             particles = []
             strokes = []
             rainDrops = []
             auroraBands = []
+            resizeCanvas()
+        }
+
+        function setVisualizationMode(mode) {
+            if (!['spots', 'lines', 'rain', 'aurora'].includes(mode)) return
+            visualizationMode = mode
+            clearVisuals()
 
             for (const button of modeButtons) {
                 button.setAttribute('aria-pressed', String(button.dataset.mode === mode))
@@ -386,7 +491,18 @@
             }
 
             visualLabel.textContent = `Live visual · ${labels[mode]}`
-            resizeCanvas()
+        }
+
+        function setColorPalette(palette) {
+            if (!palettes[palette]) return
+            colorPalette = palette
+
+            for (const button of paletteButtons) {
+                button.setAttribute('aria-pressed', String(button.dataset.palette === palette))
+            }
+
+            paletteName.textContent = palettes[palette].label
+            clearVisuals()
         }
 
         function updateDeviceList() {
@@ -435,14 +551,14 @@
         function spawnSpot(note, velocity) {
             const normalizedNote = Math.max(0, Math.min(1, (note - 21) / 87))
             const strength = Math.max(.05, velocity / 127)
-            const hue = (note * 19) % 360
+            const color = paletteColor(note)
 
             particles.push({
                 x: width * (.1 + normalizedNote * .8),
                 y: height * (.5 + (Math.random() - .5) * .18),
                 radius: 12 + strength * 72,
                 alpha: .35 + strength * .65,
-                hue,
+                color,
                 vx: (Math.random() - .5) * (1 + strength * 2.5),
                 vy: -(.3 + Math.random() * 1.8 + strength),
                 life: 1,
@@ -455,7 +571,7 @@
         function spawnStroke(note, velocity) {
             const normalizedNote = Math.max(0, Math.min(1, (note - 21) / 87))
             const strength = Math.max(.05, velocity / 127)
-            const hue = (note * 19) % 360
+            const color = paletteColor(note)
             const x = width * (.08 + normalizedNote * .84)
             const y = height * (.18 + (1 - normalizedNote) * .64)
             const length = 90 + strength * Math.min(width * .32, 330)
@@ -466,7 +582,7 @@
                 y,
                 length,
                 angle,
-                hue,
+                color,
                 alpha: .4 + strength * .6,
                 lineWidth: 1.5 + strength * 10,
                 speed: .35 + strength * 1.7,
@@ -482,11 +598,11 @@
         function spawnRain(note, velocity) {
             const normalizedNote = Math.max(0, Math.min(1, (note - 21) / 87))
             const strength = Math.max(.05, velocity / 127)
-            const hue = (note * 19) % 360
             const dropCount = 1 + Math.round(strength * 2)
             const baseX = width * (.08 + normalizedNote * .84)
 
             for (let i = 0; i < dropCount; i += 1) {
+                const color = paletteColor(note, i)
                 rainDrops.push({
                     x: baseX + (Math.random() - .5) * (24 + strength * 36),
                     y: -30 - Math.random() * Math.min(height * .1, 80),
@@ -496,7 +612,7 @@
                     drift: (Math.random() - .5) * .12,
                     length: 30 + strength * 68 + Math.random() * 24,
                     lineWidth: 1 + strength * 2.8,
-                    hue: Math.round((hue + (Math.random() - .5) * 14 + 360) % 360),
+                    color,
                     alpha: .42 + strength * .5,
                     life: 1,
                     phase: Math.random() * Math.PI * 2,
@@ -510,7 +626,7 @@
         function spawnAurora(note, velocity) {
             const normalizedNote = Math.max(0, Math.min(1, (note - 21) / 87))
             const strength = Math.max(.05, velocity / 127)
-            const hue = (155 + note * 7) % 360
+            const color = paletteColor(note)
             const targetY = height * (.2 + (1 - normalizedNote) * .52)
             let band = auroraBands.find(item => Math.abs(item.note - note) <= 2)
 
@@ -519,8 +635,8 @@
                     note,
                     y: targetY,
                     targetY,
-                    hue,
-                    targetHue: hue,
+                    color: { ...color },
+                    targetColor: { ...color },
                     energy: 0,
                     targetEnergy: 0,
                     phase: Math.random() * Math.PI * 2,
@@ -535,7 +651,7 @@
 
             band.note = note
             band.targetY = targetY
-            band.targetHue = hue
+            band.targetColor = { ...color }
             band.targetEnergy = Math.min(1, band.targetEnergy + .28 + strength * .72)
             band.thickness = 34 + strength * 90
             band.waveA = 18 + strength * 50
@@ -647,9 +763,9 @@
 
                 const alpha = Math.max(0, particle.alpha * particle.life)
                 const gradient = context.createRadialGradient(particle.x, particle.y, 0, particle.x, particle.y, particle.radius)
-                gradient.addColorStop(0, `hsla(${particle.hue}, 88%, 70%, ${alpha})`)
-                gradient.addColorStop(.35, `hsla(${particle.hue}, 82%, 56%, ${alpha * .55})`)
-                gradient.addColorStop(1, `hsla(${particle.hue}, 76%, 38%, 0)`)
+                gradient.addColorStop(0, hsl(particle.color, 10, alpha))
+                gradient.addColorStop(.35, hsl(particle.color, 0, alpha * .55))
+                gradient.addColorStop(1, hsl(particle.color, -16, 0))
 
                 context.fillStyle = gradient
                 context.beginPath()
@@ -685,8 +801,8 @@
                 const cy = stroke.y + py * bend
 
                 context.shadowBlur = 12 + stroke.lineWidth * 2
-                context.shadowColor = `hsla(${stroke.hue}, 90%, 65%, ${alpha * .75})`
-                context.strokeStyle = `hsla(${stroke.hue}, 90%, 68%, ${alpha})`
+                context.shadowColor = hsl(stroke.color, 3, alpha * .75)
+                context.strokeStyle = hsl(stroke.color, 6, alpha)
                 context.lineWidth = stroke.lineWidth
                 context.beginPath()
                 context.moveTo(x1, y1)
@@ -694,7 +810,7 @@
                 context.stroke()
 
                 context.shadowBlur = 0
-                context.strokeStyle = `hsla(${stroke.hue}, 95%, 88%, ${alpha * .7})`
+                context.strokeStyle = hsl(stroke.color, 24, alpha * .7)
                 context.lineWidth = Math.max(1, stroke.lineWidth * .18)
                 context.beginPath()
                 context.moveTo(x1, y1)
@@ -730,21 +846,21 @@
                 const tailX = drop.x - sway
                 const tailY = drop.y - drop.length
 
-                context.strokeStyle = `hsla(${drop.hue}, 90%, 58%, ${alpha * .25})`
+                context.strokeStyle = hsl(drop.color, -4, alpha * .25)
                 context.lineWidth = drop.lineWidth * 3
                 context.beginPath()
                 context.moveTo(tailX, tailY)
                 context.lineTo(drop.x, drop.y)
                 context.stroke()
 
-                context.strokeStyle = `hsla(${drop.hue}, 98%, 76%, ${alpha})`
+                context.strokeStyle = hsl(drop.color, 12, alpha)
                 context.lineWidth = drop.lineWidth
                 context.beginPath()
                 context.moveTo(tailX, tailY + drop.length * .18)
                 context.lineTo(drop.x, drop.y)
                 context.stroke()
 
-                context.fillStyle = `hsla(${drop.hue}, 100%, 92%, ${alpha})`
+                context.fillStyle = hsl(drop.color, 28, alpha)
                 context.fillRect(
                     drop.x - Math.max(.7, drop.lineWidth * .3),
                     drop.y - Math.max(.7, drop.lineWidth * .3),
@@ -766,7 +882,9 @@
                 band.energy += (band.targetEnergy - band.energy) * .08 * step
                 band.targetEnergy *= Math.pow(.988, step)
                 band.y += (band.targetY - band.y) * .035 * step
-                band.hue += (band.targetHue - band.hue) * .04 * step
+                band.color.hue += (band.targetColor.hue - band.color.hue) * .04 * step
+                band.color.saturation += (band.targetColor.saturation - band.color.saturation) * .04 * step
+                band.color.lightness += (band.targetColor.lightness - band.color.lightness) * .04 * step
                 band.phase += band.speed * 60 * step
 
                 if (band.energy < .008 && band.targetEnergy < .008) {
@@ -793,7 +911,12 @@
                         else context.lineTo(x, y)
                     }
 
-                    context.strokeStyle = `hsla(${(band.hue + layer * 16) % 360}, 88%, ${62 + layer * 7}%, ${alpha * (1 - layer * .2)})`
+                    const layerColor = {
+                        hue: (band.color.hue + layer * 12) % 360,
+                        saturation: band.color.saturation,
+                        lightness: band.color.lightness
+                    }
+                    context.strokeStyle = hsl(layerColor, layer * 5, alpha * (1 - layer * .2))
                     context.lineWidth = thickness * (1 - layer * .22)
                     context.stroke()
                 }
@@ -809,7 +932,7 @@
                     if (p === 0) context.moveTo(x, y)
                     else context.lineTo(x, y)
                 }
-                context.strokeStyle = `hsla(${band.hue}, 96%, 86%, ${Math.min(.62, alpha * .72)})`
+                context.strokeStyle = hsl(band.color, 20, Math.min(.62, alpha * .72))
                 context.lineWidth = Math.max(1.2, thickness * .08)
                 context.stroke()
             }
@@ -817,7 +940,6 @@
 
         function animate(timestamp) {
             requestAnimationFrame(animate)
-
             if (timestamp - lastFrameTime < 15.5) return
 
             const delta = lastFrameTime ? Math.min(32, timestamp - lastFrameTime) : 16.67
@@ -849,6 +971,7 @@
         deviceSelect.addEventListener('change', event => selectInput(event.target.value))
         fullscreenButton.addEventListener('click', toggleFullscreen)
         modeButtons.forEach(button => button.addEventListener('click', () => setVisualizationMode(button.dataset.mode)))
+        paletteButtons.forEach(button => button.addEventListener('click', () => setColorPalette(button.dataset.palette)))
         visual.addEventListener('dblclick', event => {
             if (!event.target.closest('.fullscreen-button')) toggleFullscreen()
         })
