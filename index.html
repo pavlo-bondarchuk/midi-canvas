@@ -115,7 +115,7 @@
 
         .mode-switch {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 6px;
             padding: 5px;
             border: 1px solid #2b2b2b;
@@ -243,12 +243,10 @@
 
         @media (max-width: 820px) {
             .app { grid-template-columns: 1fr; }
-
             .panel {
                 border-right: 0;
                 border-bottom: 1px solid #252525;
             }
-
             .visual { min-height: 58vh; }
         }
     </style>
@@ -283,6 +281,7 @@
                     <button class="mode-button" type="button" data-mode="spots" aria-pressed="true">Плями</button>
                     <button class="mode-button" type="button" data-mode="lines" aria-pressed="false">Лінії</button>
                     <button class="mode-button" type="button" data-mode="rain" aria-pressed="false">Дощ</button>
+                    <button class="mode-button" type="button" data-mode="aurora" aria-pressed="false">Сяйво</button>
                 </div>
             </div>
 
@@ -334,10 +333,12 @@
         let particles = []
         let strokes = []
         let rainDrops = []
+        let auroraBands = []
         let width = 0
         let height = 0
         let pixelRatio = 1
         let lastFrameTime = 0
+        let auroraTime = 0
 
         const noteNames = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B']
 
@@ -353,7 +354,7 @@
 
         function resizeCanvas() {
             const rect = visual.getBoundingClientRect()
-            const maxPixelRatio = visualizationMode === 'rain' ? 1.35 : 2
+            const maxPixelRatio = visualizationMode === 'rain' || visualizationMode === 'aurora' ? 1.35 : 2
             pixelRatio = Math.min(window.devicePixelRatio || 1, maxPixelRatio)
             width = Math.max(1, Math.round(rect.width))
             height = Math.max(1, Math.round(rect.height))
@@ -365,12 +366,13 @@
         }
 
         function setVisualizationMode(mode) {
-            if (!['spots', 'lines', 'rain'].includes(mode)) return
+            if (!['spots', 'lines', 'rain', 'aurora'].includes(mode)) return
 
             visualizationMode = mode
             particles = []
             strokes = []
             rainDrops = []
+            auroraBands = []
 
             for (const button of modeButtons) {
                 button.setAttribute('aria-pressed', String(button.dataset.mode === mode))
@@ -379,7 +381,8 @@
             const labels = {
                 spots: 'Плями',
                 lines: 'Лінії',
-                rain: 'Кольоровий дощ'
+                rain: 'Кольоровий дощ',
+                aurora: 'Полярне сяйво'
             }
 
             visualLabel.textContent = `Live visual · ${labels[mode]}`
@@ -501,22 +504,53 @@
                 })
             }
 
-            if (rainDrops.length > 150) {
-                rainDrops.splice(0, rainDrops.length - 150)
+            if (rainDrops.length > 150) rainDrops.splice(0, rainDrops.length - 150)
+        }
+
+        function spawnAurora(note, velocity) {
+            const normalizedNote = Math.max(0, Math.min(1, (note - 21) / 87))
+            const strength = Math.max(.05, velocity / 127)
+            const hue = (155 + note * 7) % 360
+            const targetY = height * (.2 + (1 - normalizedNote) * .52)
+            let band = auroraBands.find(item => Math.abs(item.note - note) <= 2)
+
+            if (!band) {
+                band = {
+                    note,
+                    y: targetY,
+                    targetY,
+                    hue,
+                    targetHue: hue,
+                    energy: 0,
+                    targetEnergy: 0,
+                    phase: Math.random() * Math.PI * 2,
+                    speed: .004 + Math.random() * .004,
+                    waveA: 18 + Math.random() * 24,
+                    waveB: 9 + Math.random() * 16,
+                    frequency: 1.2 + Math.random() * 1.4,
+                    thickness: 34 + Math.random() * 26
+                }
+                auroraBands.push(band)
+            }
+
+            band.note = note
+            band.targetY = targetY
+            band.targetHue = hue
+            band.targetEnergy = Math.min(1, band.targetEnergy + .28 + strength * .72)
+            band.thickness = 34 + strength * 90
+            band.waveA = 18 + strength * 50
+            band.waveB = 9 + strength * 24
+
+            if (auroraBands.length > 7) {
+                auroraBands.sort((a, b) => b.energy - a.energy)
+                auroraBands.length = 7
             }
         }
 
         function createVisual(note, velocity) {
-            if (visualizationMode === 'lines') {
-                spawnStroke(note, velocity)
-                return
-            }
-
-            if (visualizationMode === 'rain') {
-                spawnRain(note, velocity)
-                return
-            }
-
+            if (visualizationMode === 'lines') return spawnStroke(note, velocity)
+            if (visualizationMode === 'rain') return spawnRain(note, velocity)
+            if (visualizationMode === 'aurora') return spawnAurora(note, velocity)
             spawnSpot(note, velocity)
         }
 
@@ -684,9 +718,7 @@
                 drop.x += (drop.drift + Math.sin(drop.phase) * .018) * step
                 drop.y += drop.vy * step
 
-                if (drop.y > height * .76) {
-                    drop.life -= .012 * step
-                }
+                if (drop.y > height * .76) drop.life -= .012 * step
 
                 if (drop.y > height + drop.length || drop.life <= 0) {
                     rainDrops.splice(i, 1)
@@ -722,6 +754,67 @@
             }
         }
 
+        function drawAurora(step) {
+            auroraTime += .012 * step
+            context.globalCompositeOperation = 'lighter'
+            context.lineCap = 'round'
+            context.lineJoin = 'round'
+            context.shadowBlur = 0
+
+            for (let i = auroraBands.length - 1; i >= 0; i -= 1) {
+                const band = auroraBands[i]
+                band.energy += (band.targetEnergy - band.energy) * .08 * step
+                band.targetEnergy *= Math.pow(.988, step)
+                band.y += (band.targetY - band.y) * .035 * step
+                band.hue += (band.targetHue - band.hue) * .04 * step
+                band.phase += band.speed * 60 * step
+
+                if (band.energy < .008 && band.targetEnergy < .008) {
+                    auroraBands.splice(i, 1)
+                    continue
+                }
+
+                const points = 32
+                const alpha = Math.min(.72, .12 + band.energy * .6)
+                const thickness = band.thickness * (.55 + band.energy * .75)
+
+                for (let layer = 0; layer < 3; layer += 1) {
+                    context.beginPath()
+
+                    for (let p = 0; p <= points; p += 1) {
+                        const x = width * (p / points)
+                        const nx = p / points
+                        const wave =
+                            Math.sin(nx * Math.PI * 2 * band.frequency + band.phase) * band.waveA +
+                            Math.sin(nx * Math.PI * 4.3 + band.phase * .63) * band.waveB
+                        const y = band.y + wave + (layer - 1) * thickness * .2
+
+                        if (p === 0) context.moveTo(x, y)
+                        else context.lineTo(x, y)
+                    }
+
+                    context.strokeStyle = `hsla(${(band.hue + layer * 16) % 360}, 88%, ${62 + layer * 7}%, ${alpha * (1 - layer * .2)})`
+                    context.lineWidth = thickness * (1 - layer * .22)
+                    context.stroke()
+                }
+
+                context.beginPath()
+                for (let p = 0; p <= points; p += 1) {
+                    const x = width * (p / points)
+                    const nx = p / points
+                    const wave =
+                        Math.sin(nx * Math.PI * 2 * band.frequency + band.phase) * band.waveA +
+                        Math.sin(nx * Math.PI * 4.3 + band.phase * .63) * band.waveB
+                    const y = band.y + wave
+                    if (p === 0) context.moveTo(x, y)
+                    else context.lineTo(x, y)
+                }
+                context.strokeStyle = `hsla(${band.hue}, 96%, 86%, ${Math.min(.62, alpha * .72)})`
+                context.lineWidth = Math.max(1.2, thickness * .08)
+                context.stroke()
+            }
+        }
+
         function animate(timestamp) {
             requestAnimationFrame(animate)
 
@@ -737,13 +830,16 @@
                 ? .085
                 : visualizationMode === 'rain'
                     ? .11
-                    : .12
+                    : visualizationMode === 'aurora'
+                        ? .16
+                        : .12
 
             context.fillStyle = `rgba(5, 5, 5, ${fade})`
             context.fillRect(0, 0, width, height)
 
             if (visualizationMode === 'lines') drawLines(step)
             else if (visualizationMode === 'rain') drawRain(step)
+            else if (visualizationMode === 'aurora') drawAurora(step)
             else drawSpots(step)
 
             context.globalCompositeOperation = 'source-over'
