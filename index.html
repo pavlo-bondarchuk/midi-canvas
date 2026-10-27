@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="uk">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>MIDI Canvas</title>
+    <style>
+        :root {
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: #f5f5f5;
+            background: #090909;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: #090909;
+        }
+
+        button,
+        select {
+            font: inherit;
+        }
+
+        .app {
+            display: grid;
+            grid-template-columns: minmax(280px, 360px) 1fr;
+            min-height: 100vh;
+        }
+
+        .panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding: 28px;
+            border-right: 1px solid #252525;
+            background: #111;
+        }
+
+        .eyebrow {
+            margin: 0 0 6px;
+            color: #929292;
+            font-size: 12px;
+            letter-spacing: .14em;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(28px, 4vw, 42px);
+            line-height: 1;
+        }
+
+        .description {
+            margin: 0;
+            color: #aaa;
+            line-height: 1.55;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #b7b7b7;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #555;
+        }
+
+        .status[data-state="connected"] .status-dot {
+            background: #52d273;
+            box-shadow: 0 0 16px rgba(82, 210, 115, .4);
+        }
+
+        .button {
+            min-height: 48px;
+            border: 0;
+            border-radius: 12px;
+            padding: 0 18px;
+            color: #111;
+            background: #f5f5f5;
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        .button:disabled {
+            opacity: .45;
+            cursor: not-allowed;
+        }
+
+        .field {
+            display: grid;
+            gap: 8px;
+        }
+
+        .field label {
+            color: #929292;
+            font-size: 13px;
+        }
+
+        select {
+            width: 100%;
+            min-height: 44px;
+            border: 1px solid #343434;
+            border-radius: 10px;
+            padding: 0 12px;
+            color: #f5f5f5;
+            background: #191919;
+        }
+
+        .monitor {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .metric {
+            min-width: 0;
+            padding: 14px;
+            border: 1px solid #292929;
+            border-radius: 12px;
+            background: #171717;
+        }
+
+        .metric span {
+            display: block;
+            margin-bottom: 6px;
+            color: #777;
+            font-size: 11px;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+        }
+
+        .metric strong {
+            display: block;
+            overflow: hidden;
+            color: #fff;
+            font-size: 20px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .message {
+            min-height: 44px;
+            margin-top: auto;
+            color: #858585;
+            font-size: 13px;
+            line-height: 1.45;
+        }
+
+        .visual {
+            position: relative;
+            min-width: 0;
+            min-height: 100vh;
+            overflow: hidden;
+            background: #050505;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .visual-label {
+            position: absolute;
+            top: 20px;
+            right: 22px;
+            pointer-events: none;
+            color: rgba(255,255,255,.3);
+            font-size: 12px;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+        }
+
+        @media (max-width: 820px) {
+            .app {
+                grid-template-columns: 1fr;
+            }
+
+            .panel {
+                border-right: 0;
+                border-bottom: 1px solid #252525;
+            }
+
+            .visual {
+                min-height: 58vh;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="app">
+        <section class="panel">
+            <div>
+                <p class="eyebrow">Web MIDI experiment</p>
+                <h1>MIDI Canvas</h1>
+            </div>
+
+            <p class="description">Підключи цифрове піаніно через USB, дозволь браузеру доступ до MIDI та зіграй кілька нот.</p>
+
+            <div class="status" id="status" data-state="disconnected">
+                <span class="status-dot"></span>
+                <span id="statusText">MIDI не підключено</span>
+            </div>
+
+            <button class="button" id="connectButton" type="button">Підключити MIDI</button>
+
+            <div class="field">
+                <label for="deviceSelect">MIDI input</label>
+                <select id="deviceSelect" disabled>
+                    <option value="">Немає доступних пристроїв</option>
+                </select>
+            </div>
+
+            <div class="monitor">
+                <div class="metric">
+                    <span>Event</span>
+                    <strong id="eventValue">—</strong>
+                </div>
+                <div class="metric">
+                    <span>Note</span>
+                    <strong id="noteValue">—</strong>
+                </div>
+                <div class="metric">
+                    <span>MIDI</span>
+                    <strong id="midiValue">—</strong>
+                </div>
+                <div class="metric">
+                    <span>Velocity</span>
+                    <strong id="velocityValue">—</strong>
+                </div>
+            </div>
+
+            <div class="message" id="message">Для Web MIDI відкрий сторінку в Chrome або Edge через HTTPS або localhost.</div>
+        </section>
+
+        <section class="visual" id="visual">
+            <canvas id="canvas"></canvas>
+            <div class="visual-label">Live visual</div>
+        </section>
+    </main>
+
+    <script>
+        const connectButton = document.getElementById('connectButton')
+        const deviceSelect = document.getElementById('deviceSelect')
+        const status = document.getElementById('status')
+        const statusText = document.getElementById('statusText')
+        const eventValue = document.getElementById('eventValue')
+        const noteValue = document.getElementById('noteValue')
+        const midiValue = document.getElementById('midiValue')
+        const velocityValue = document.getElementById('velocityValue')
+        const message = document.getElementById('message')
+        const visual = document.getElementById('visual')
+        const canvas = document.getElementById('canvas')
+        const context = canvas.getContext('2d')
+
+        let midiAccess = null
+        let selectedInput = null
+        let particles = []
+        let width = 0
+        let height = 0
+        let pixelRatio = 1
+
+        const noteNames = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B']
+
+        function noteName(note) {
+            const octave = Math.floor(note / 12) - 1
+            return `${noteNames[note % 12]}${octave}`
+        }
+
+        function setStatus(connected, text) {
+            status.dataset.state = connected ? 'connected' : 'disconnected'
+            statusText.textContent = text
+        }
+
+        function resizeCanvas() {
+            const rect = visual.getBoundingClientRect()
+            pixelRatio = Math.min(window.devicePixelRatio || 1, 2)
+            width = Math.max(1, Math.round(rect.width))
+            height = Math.max(1, Math.round(rect.height))
+            canvas.width = Math.round(width * pixelRatio)
+            canvas.height = Math.round(height * pixelRatio)
+            context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0)
+        }
+
+        function updateDeviceList() {
+            const previousValue = deviceSelect.value
+            const inputs = Array.from(midiAccess?.inputs.values() || [])
+
+            deviceSelect.innerHTML = ''
+
+            if (!inputs.length) {
+                const option = document.createElement('option')
+                option.value = ''
+                option.textContent = 'Немає доступних пристроїв'
+                deviceSelect.appendChild(option)
+                deviceSelect.disabled = true
+                selectedInput = null
+                setStatus(false, 'MIDI-пристрій не знайдено')
+                return
+            }
+
+            for (const input of inputs) {
+                const option = document.createElement('option')
+                option.value = input.id
+                option.textContent = input.name || input.manufacturer || 'MIDI input'
+                deviceSelect.appendChild(option)
+            }
+
+            deviceSelect.disabled = false
+            const nextValue = inputs.some(input => input.id === previousValue) ? previousValue : inputs[0].id
+            deviceSelect.value = nextValue
+            selectInput(nextValue)
+        }
+
+        function selectInput(id) {
+            if (selectedInput) {
+                selectedInput.onmidimessage = null
+            }
+
+            selectedInput = midiAccess?.inputs.get(id) || null
+
+            if (!selectedInput) {
+                setStatus(false, 'MIDI-пристрій не вибрано')
+                return
+            }
+
+            selectedInput.onmidimessage = handleMIDIMessage
+            setStatus(true, selectedInput.name || 'MIDI підключено')
+            message.textContent = 'Зіграйте ноту на піаніно. MIDI-події з’являться тут у реальному часі.'
+        }
+
+        function spawnParticle(note, velocity) {
+            const normalizedNote = Math.max(0, Math.min(1, (note - 21) / 87))
+            const strength = Math.max(.05, velocity / 127)
+            const hue = (note * 19) % 360
+
+            particles.push({
+                x: width * (.1 + normalizedNote * .8),
+                y: height * (.5 + (Math.random() - .5) * .18),
+                radius: 12 + strength * 72,
+                alpha: .35 + strength * .65,
+                hue,
+                vx: (Math.random() - .5) * (1 + strength * 2.5),
+                vy: -(.3 + Math.random() * 1.8 + strength),
+                life: 1,
+                decay: .006 + Math.random() * .008
+            })
+
+            if (particles.length > 220) {
+                particles = particles.slice(-220)
+            }
+        }
+
+        function handleMIDIMessage(event) {
+            const [statusByte, data1, data2] = event.data
+            const command = statusByte & 0xf0
+            const channel = (statusByte & 0x0f) + 1
+
+            if (command === 0x90 && data2 > 0) {
+                eventValue.textContent = 'Note On'
+                noteValue.textContent = noteName(data1)
+                midiValue.textContent = data1
+                velocityValue.textContent = data2
+                spawnParticle(data1, data2)
+                message.textContent = `Channel ${channel}`
+                return
+            }
+
+            if (command === 0x80 || (command === 0x90 && data2 === 0)) {
+                eventValue.textContent = 'Note Off'
+                noteValue.textContent = noteName(data1)
+                midiValue.textContent = data1
+                velocityValue.textContent = data2
+                message.textContent = `Channel ${channel}`
+                return
+            }
+
+            if (command === 0xb0) {
+                eventValue.textContent = data1 === 64 ? 'Pedal' : 'Control'
+                noteValue.textContent = data1 === 64 ? (data2 >= 64 ? 'Down' : 'Up') : `CC ${data1}`
+                midiValue.textContent = data1
+                velocityValue.textContent = data2
+                message.textContent = `Channel ${channel}`
+            }
+        }
+
+        async function connectMIDI() {
+            if (!('requestMIDIAccess' in navigator)) {
+                setStatus(false, 'Web MIDI не підтримується')
+                message.textContent = 'Цей браузер не підтримує Web MIDI API. Використай актуальний Chrome або Edge.'
+                connectButton.disabled = true
+                return
+            }
+
+            connectButton.disabled = true
+            connectButton.textContent = 'Підключення…'
+
+            try {
+                midiAccess = await navigator.requestMIDIAccess({ sysex: false })
+                midiAccess.addEventListener('statechange', updateDeviceList)
+                updateDeviceList()
+                connectButton.textContent = 'MIDI підключено'
+            } catch (error) {
+                setStatus(false, 'Доступ до MIDI не надано')
+                message.textContent = error?.message || 'Не вдалося отримати доступ до MIDI-пристрою.'
+                connectButton.disabled = false
+                connectButton.textContent = 'Підключити MIDI'
+            }
+        }
+
+        function animate() {
+            context.fillStyle = 'rgba(5, 5, 5, 0.12)'
+            context.fillRect(0, 0, width, height)
+            context.globalCompositeOperation = 'lighter'
+
+            for (const particle of particles) {
+                particle.x += particle.vx
+                particle.y += particle.vy
+                particle.life -= particle.decay
+                particle.radius *= 1.004
+
+                const alpha = Math.max(0, particle.alpha * particle.life)
+                const gradient = context.createRadialGradient(
+                    particle.x,
+                    particle.y,
+                    0,
+                    particle.x,
+                    particle.y,
+                    particle.radius
+                )
+
+                gradient.addColorStop(0, `hsla(${particle.hue}, 88%, 70%, ${alpha})`)
+                gradient.addColorStop(.35, `hsla(${particle.hue}, 82%, 56%, ${alpha * .55})`)
+                gradient.addColorStop(1, `hsla(${particle.hue}, 76%, 38%, 0)`)
+
+                context.fillStyle = gradient
+                context.beginPath()
+                context.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2)
+                context.fill()
+            }
+
+            context.globalCompositeOperation = 'source-over'
+            particles = particles.filter(particle => particle.life > 0)
+            requestAnimationFrame(animate)
+        }
+
+        connectButton.addEventListener('click', connectMIDI)
+        deviceSelect.addEventListener('change', event => selectInput(event.target.value))
+        window.addEventListener('resize', resizeCanvas)
+
+        resizeCanvas()
+        animate()
+    </script>
+</body>
+</html>
