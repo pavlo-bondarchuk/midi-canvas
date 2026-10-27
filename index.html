@@ -243,10 +243,12 @@
 
         @media (max-width: 820px) {
             .app { grid-template-columns: 1fr; }
+
             .panel {
                 border-right: 0;
                 border-bottom: 1px solid #252525;
             }
+
             .visual { min-height: 58vh; }
         }
     </style>
@@ -324,7 +326,7 @@
         const fullscreenButton = document.getElementById('fullscreenButton')
         const fullscreenIcon = document.getElementById('fullscreenIcon')
         const modeButtons = Array.from(document.querySelectorAll('.mode-button'))
-        const context = canvas.getContext('2d')
+        const context = canvas.getContext('2d', { alpha: false })
 
         let midiAccess = null
         let selectedInput = null
@@ -335,6 +337,7 @@
         let width = 0
         let height = 0
         let pixelRatio = 1
+        let lastFrameTime = 0
 
         const noteNames = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B']
 
@@ -350,12 +353,15 @@
 
         function resizeCanvas() {
             const rect = visual.getBoundingClientRect()
-            pixelRatio = Math.min(window.devicePixelRatio || 1, 2)
+            const maxPixelRatio = visualizationMode === 'rain' ? 1.35 : 2
+            pixelRatio = Math.min(window.devicePixelRatio || 1, maxPixelRatio)
             width = Math.max(1, Math.round(rect.width))
             height = Math.max(1, Math.round(rect.height))
             canvas.width = Math.round(width * pixelRatio)
             canvas.height = Math.round(height * pixelRatio)
             context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0)
+            context.fillStyle = '#050505'
+            context.fillRect(0, 0, width, height)
         }
 
         function setVisualizationMode(mode) {
@@ -365,7 +371,6 @@
             particles = []
             strokes = []
             rainDrops = []
-            context.clearRect(0, 0, width, height)
 
             for (const button of modeButtons) {
                 button.setAttribute('aria-pressed', String(button.dataset.mode === mode))
@@ -378,6 +383,7 @@
             }
 
             visualLabel.textContent = `Live visual · ${labels[mode]}`
+            resizeCanvas()
         }
 
         function updateDeviceList() {
@@ -474,29 +480,30 @@
             const normalizedNote = Math.max(0, Math.min(1, (note - 21) / 87))
             const strength = Math.max(.05, velocity / 127)
             const hue = (note * 19) % 360
-            const dropCount = 2 + Math.round(strength * 4)
+            const dropCount = 1 + Math.round(strength * 2)
+            const baseX = width * (.08 + normalizedNote * .84)
 
             for (let i = 0; i < dropCount; i += 1) {
-                const offset = (Math.random() - .5) * (28 + strength * 42)
-
                 rainDrops.push({
-                    x: width * (.08 + normalizedNote * .84) + offset,
-                    y: -20 - Math.random() * height * .12,
-                    vy: .35 + strength * .55 + Math.random() * .2,
-                    targetVy: 2.4 + strength * 4.5 + Math.random() * 1.2,
-                    acceleration: .012 + Math.random() * .01,
-                    drift: (Math.random() - .5) * .18,
-                    length: 24 + strength * 80 + Math.random() * 34,
-                    lineWidth: .8 + strength * 3.8,
-                    hue: (hue + (Math.random() - .5) * 18 + 360) % 360,
-                    alpha: .34 + strength * .5,
+                    x: baseX + (Math.random() - .5) * (24 + strength * 36),
+                    y: -30 - Math.random() * Math.min(height * .1, 80),
+                    vy: .55 + strength * .8 + Math.random() * .25,
+                    targetVy: 3 + strength * 4.4 + Math.random() * .7,
+                    acceleration: .025 + Math.random() * .012,
+                    drift: (Math.random() - .5) * .12,
+                    length: 30 + strength * 68 + Math.random() * 24,
+                    lineWidth: 1 + strength * 2.8,
+                    hue: Math.round((hue + (Math.random() - .5) * 14 + 360) % 360),
+                    alpha: .42 + strength * .5,
                     life: 1,
                     phase: Math.random() * Math.PI * 2,
-                    sway: 3 + Math.random() * 9
+                    sway: 2 + Math.random() * 5
                 })
             }
 
-            if (rainDrops.length > 320) rainDrops = rainDrops.slice(-320)
+            if (rainDrops.length > 150) {
+                rainDrops.splice(0, rainDrops.length - 150)
+            }
         }
 
         function createVisual(note, velocity) {
@@ -595,14 +602,14 @@
             requestAnimationFrame(resizeCanvas)
         }
 
-        function drawSpots() {
+        function drawSpots(step) {
             context.globalCompositeOperation = 'lighter'
 
             for (const particle of particles) {
-                particle.x += particle.vx
-                particle.y += particle.vy
-                particle.life -= particle.decay
-                particle.radius *= 1.004
+                particle.x += particle.vx * step
+                particle.y += particle.vy * step
+                particle.life -= particle.decay * step
+                particle.radius *= Math.pow(1.004, step)
 
                 const alpha = Math.max(0, particle.alpha * particle.life)
                 const gradient = context.createRadialGradient(particle.x, particle.y, 0, particle.x, particle.y, particle.radius)
@@ -619,16 +626,16 @@
             particles = particles.filter(particle => particle.life > 0)
         }
 
-        function drawLines() {
+        function drawLines(step) {
             context.globalCompositeOperation = 'lighter'
             context.lineCap = 'round'
             context.lineJoin = 'round'
 
             for (const stroke of strokes) {
-                stroke.life -= stroke.decay
-                stroke.phase += .018 + stroke.speed * .006
-                stroke.x += Math.cos(stroke.angle) * stroke.speed
-                stroke.y += Math.sin(stroke.angle) * stroke.speed
+                stroke.life -= stroke.decay * step
+                stroke.phase += (.018 + stroke.speed * .006) * step
+                stroke.x += Math.cos(stroke.angle) * stroke.speed * step
+                stroke.y += Math.sin(stroke.angle) * stroke.speed * step
 
                 const alpha = Math.max(0, stroke.alpha * stroke.life)
                 const dx = Math.cos(stroke.angle) * stroke.length
@@ -665,76 +672,81 @@
             context.shadowBlur = 0
         }
 
-        function drawRain() {
+        function drawRain(step) {
             context.globalCompositeOperation = 'lighter'
             context.lineCap = 'round'
+            context.shadowBlur = 0
 
-            for (const drop of rainDrops) {
-                drop.vy += (drop.targetVy - drop.vy) * drop.acceleration
-                drop.phase += .012
-                drop.x += drop.drift + Math.sin(drop.phase) * .025
-                drop.y += drop.vy
+            for (let i = rainDrops.length - 1; i >= 0; i -= 1) {
+                const drop = rainDrops[i]
+                drop.vy += (drop.targetVy - drop.vy) * drop.acceleration * step
+                drop.phase += .011 * step
+                drop.x += (drop.drift + Math.sin(drop.phase) * .018) * step
+                drop.y += drop.vy * step
 
-                if (drop.y > height * .72) {
-                    drop.life -= .006
+                if (drop.y > height * .76) {
+                    drop.life -= .012 * step
                 }
 
-                if (drop.y > height + drop.length) {
-                    drop.life = 0
+                if (drop.y > height + drop.length || drop.life <= 0) {
+                    rainDrops.splice(i, 1)
+                    continue
                 }
 
                 const alpha = Math.max(0, drop.alpha * drop.life)
                 const sway = Math.sin(drop.phase) * drop.sway
-                const tailX = drop.x - drop.drift * drop.length * .7 - sway
+                const tailX = drop.x - sway
                 const tailY = drop.y - drop.length
-                const gradient = context.createLinearGradient(tailX, tailY, drop.x, drop.y)
-                gradient.addColorStop(0, `hsla(${drop.hue}, 92%, 58%, 0)`)
-                gradient.addColorStop(.55, `hsla(${drop.hue}, 92%, 62%, ${alpha * .45})`)
-                gradient.addColorStop(1, `hsla(${drop.hue}, 98%, 78%, ${alpha})`)
 
-                context.shadowBlur = 10 + drop.lineWidth * 4
-                context.shadowColor = `hsla(${drop.hue}, 95%, 65%, ${alpha * .65})`
-                context.strokeStyle = gradient
-                context.lineWidth = drop.lineWidth
+                context.strokeStyle = `hsla(${drop.hue}, 90%, 58%, ${alpha * .25})`
+                context.lineWidth = drop.lineWidth * 3
                 context.beginPath()
                 context.moveTo(tailX, tailY)
-                context.quadraticCurveTo(
-                    drop.x - sway * .45,
-                    drop.y - drop.length * .46,
-                    drop.x,
-                    drop.y
-                )
+                context.lineTo(drop.x, drop.y)
                 context.stroke()
 
-                context.shadowBlur = 12 + drop.lineWidth * 3
-                context.fillStyle = `hsla(${drop.hue}, 100%, 86%, ${alpha * .9})`
+                context.strokeStyle = `hsla(${drop.hue}, 98%, 76%, ${alpha})`
+                context.lineWidth = drop.lineWidth
                 context.beginPath()
-                context.arc(drop.x, drop.y, Math.max(1.2, drop.lineWidth * .8), 0, Math.PI * 2)
-                context.fill()
-            }
+                context.moveTo(tailX, tailY + drop.length * .18)
+                context.lineTo(drop.x, drop.y)
+                context.stroke()
 
-            rainDrops = rainDrops.filter(drop => drop.life > 0)
-            context.shadowBlur = 0
+                context.fillStyle = `hsla(${drop.hue}, 100%, 92%, ${alpha})`
+                context.fillRect(
+                    drop.x - Math.max(.7, drop.lineWidth * .3),
+                    drop.y - Math.max(.7, drop.lineWidth * .3),
+                    Math.max(1.4, drop.lineWidth * .6),
+                    Math.max(1.4, drop.lineWidth * .6)
+                )
+            }
         }
 
-        function animate() {
+        function animate(timestamp) {
+            requestAnimationFrame(animate)
+
+            if (timestamp - lastFrameTime < 15.5) return
+
+            const delta = lastFrameTime ? Math.min(32, timestamp - lastFrameTime) : 16.67
+            const step = delta / 16.67
+            lastFrameTime = timestamp
+
             context.globalCompositeOperation = 'source-over'
 
             const fade = visualizationMode === 'lines'
-                ? .075
+                ? .085
                 : visualizationMode === 'rain'
-                    ? .055
+                    ? .11
                     : .12
 
             context.fillStyle = `rgba(5, 5, 5, ${fade})`
             context.fillRect(0, 0, width, height)
 
-            if (visualizationMode === 'lines') drawLines()
-            else if (visualizationMode === 'rain') drawRain()
-            else drawSpots()
+            if (visualizationMode === 'lines') drawLines(step)
+            else if (visualizationMode === 'rain') drawRain(step)
+            else drawSpots(step)
 
             context.globalCompositeOperation = 'source-over'
-            requestAnimationFrame(animate)
         }
 
         connectButton.addEventListener('click', connectMIDI)
@@ -749,7 +761,7 @@
         window.addEventListener('resize', resizeCanvas)
 
         resizeCanvas()
-        animate()
+        requestAnimationFrame(animate)
     </script>
 </body>
 </html>
