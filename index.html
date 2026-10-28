@@ -1,45 +1,281 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="dark">
-<title>MIDI Visualizer</title>
-<link rel="stylesheet" href="styles.css">
-<link rel="stylesheet" href="aurora-preview.css">
-</head>
-<body>
-<main class="app">
-<section class="panel">
-<div class="brand"><p class="eyebrow">Real-time generative visuals</p><h1>MIDI Visualizer</h1><p class="tagline">Music turns into light</p></div>
-<p class="description">Connect a MIDI instrument or use your computer keyboard to create immersive visuals in real time.</p>
-<div class="status" id="status" data-state="disconnected"><span class="status-dot"></span><span id="statusText">MIDI disconnected</span></div>
-<div class="input-card">
-<div class="field"><label for="inputSource">Input source</label><select id="inputSource"><option value="midi">MIDI device</option><option value="keyboard">Computer keyboard</option></select></div>
-<button class="button" id="connectButton" type="button">Connect MIDI</button>
-<div class="field" id="midiDeviceField"><label for="deviceSelect">MIDI input</label><select id="deviceSelect" disabled><option value="">No devices available</option></select></div>
-<div class="keyboard-help" id="keyboardHelp"><strong>2 octaves:</strong> Z S X D C V G B H N J M · Q 2 W 3 E R 5 T 6 Y 7 U<br><strong>Octave:</strong> ↑ / ↓ · <span id="octaveLabel">C3–B4</span></div>
-</div>
-<div class="field"><div class="field-title">Visual modes</div><div class="mode-switch" aria-label="Visualization mode">
-<button class="mode-button" type="button" data-mode="aurora" aria-pressed="false"><span class="mode-art"></span><span class="mode-copy"><span class="mode-title">Aurora</span><span class="mode-desc">Flowing light curtains</span></span></button>
-<button class="mode-button" type="button" data-mode="visualizer" aria-pressed="false"><span class="mode-art"></span><span class="mode-copy"><span class="mode-title">Visualizer</span><span class="mode-desc">Ambient waves of light</span></span></button>
-<button class="mode-button" type="button" data-mode="fireflies" aria-pressed="false"><span class="mode-art"></span><span class="mode-copy"><span class="mode-title">Fireflies</span><span class="mode-desc">Soft floating lights</span></span></button>
-<button class="mode-button" type="button" data-mode="spots" aria-pressed="true"><span class="mode-art"></span><span class="mode-copy"><span class="mode-title">Particles</span><span class="mode-desc">Dynamic particles</span></span></button>
-<button class="mode-button" type="button" data-mode="lines" aria-pressed="false"><span class="mode-art"></span><span class="mode-copy"><span class="mode-title">Lines</span><span class="mode-desc">Elegant light trails</span></span></button>
-<button class="mode-button" type="button" data-mode="rain" aria-pressed="false"><span class="mode-art"></span><span class="mode-copy"><span class="mode-title">Rain</span><span class="mode-desc">Musical light drops</span></span></button>
-</div></div>
-<div class="field"><div class="field-title">Color palette</div><div class="palette-grid" aria-label="Color palette">
-<button class="palette-button" type="button" data-palette="warm" aria-pressed="true" aria-label="Warm palette" title="Warm" style="--palette-preview:linear-gradient(135deg,#ff6b4b,#dc8c43,#d7b764)"></button>
-<button class="palette-button" type="button" data-palette="cool" aria-pressed="false" aria-label="Cool palette" title="Cool" style="--palette-preview:linear-gradient(135deg,#3fc0cf,#4f79c8,#8065bd)"></button>
-<button class="palette-button" type="button" data-palette="pastel" aria-pressed="false" aria-label="Pastel palette" title="Pastel" style="--palette-preview:linear-gradient(135deg,#dca7bc,#a9cadc,#c2b1d9)"></button>
-<button class="palette-button" type="button" data-palette="neon" aria-pressed="false" aria-label="Neon palette" title="Neon" style="--palette-preview:linear-gradient(135deg,#31dca0,#2ec7d8,#d340b4)"></button>
-<button class="palette-button" type="button" data-palette="contrast" aria-pressed="false" aria-label="Contrast palette" title="Contrast" style="--palette-preview:linear-gradient(135deg,#db4563 0 25%,#2cb4c5 25% 50%,#d3b938 50% 75%,#785bc3 75%)"></button>
-</div><div class="palette-name" id="paletteName">Warm</div></div>
-<div class="monitor"><div class="metric"><span>Event</span><strong id="eventValue">—</strong></div><div class="metric"><span>Note</span><strong id="noteValue">—</strong></div><div class="metric"><span>MIDI</span><strong id="midiValue">—</strong></div><div class="metric"><span>Velocity</span><strong id="velocityValue">—</strong></div></div>
-<div class="message" id="message">Web MIDI works in current Chrome or Edge over HTTPS or localhost.</div>
-</section>
-<section class="visual" id="visual"><canvas id="canvas"></canvas><div class="visual-label" id="visualLabel">Live visual · Particles</div><button class="fullscreen-button" id="fullscreenButton" type="button" aria-label="Open visualization in fullscreen" title="Fullscreen"><svg id="fullscreenIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H3v5"></path><path d="M16 3h5v5"></path><path d="M8 21H3v-5"></path><path d="M16 21h5v-5"></path></svg></button></section>
-</main>
-<script src="app.js"></script>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>MIDI Visualizer</title>
+    <link rel="stylesheet" href="assets/styles/app.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section class="panel">
+        <div class="brand">
+          <p class="eyebrow">Real-time generative visuals</p>
+          <h1>MIDI Visualizer</h1>
+          <p class="tagline">Music turns into light</p>
+        </div>
+        <p class="description">
+          Connect a MIDI instrument or use your computer keyboard to create
+          immersive visuals in real time.
+        </p>
+        <div class="status" id="status" data-state="disconnected">
+          <span class="status-dot"></span
+          ><span id="statusText">MIDI disconnected</span>
+        </div>
+        <div class="input-card">
+          <div class="field">
+            <label for="inputSource">Input source</label
+            ><select id="inputSource">
+              <option value="midi">MIDI device</option>
+              <option value="keyboard">Computer keyboard</option>
+            </select>
+          </div>
+          <button class="button" id="connectButton" type="button">
+            Connect MIDI
+          </button>
+          <div class="field" id="midiDeviceField">
+            <label for="deviceSelect">MIDI input</label
+            ><select id="deviceSelect" disabled>
+              <option value="">No devices available</option>
+            </select>
+          </div>
+          <div class="keyboard-help" id="keyboardHelp">
+            <strong>2 octaves:</strong> Z S X D C V G B H N J M · Q 2 W 3 E R 5
+            T 6 Y 7 U<br /><strong>Octave:</strong> ↑ / ↓ ·
+            <span id="octaveLabel">C3–B4</span>
+          </div>
+        </div>
+        <div class="field">
+          <div class="field-title">Visual modes</div>
+          <div class="mode-switch" aria-label="Visualization mode">
+            <button
+              class="mode-button"
+              type="button"
+              data-mode="aurora"
+              aria-pressed="true"
+            >
+              <span class="mode-art"
+                ><img
+                  src="assets/modes/aurora.svg"
+                  alt=""
+                  loading="lazy" /></span
+              ><span class="mode-copy"
+                ><span class="mode-title">Aurora</span
+                ><span class="mode-desc">Flowing light curtains</span></span
+              >
+            </button>
+            <button
+              class="mode-button"
+              type="button"
+              data-mode="visualizer"
+              aria-pressed="false"
+            >
+              <span class="mode-art"
+                ><img
+                  src="assets/modes/visualizer.svg"
+                  alt=""
+                  loading="lazy" /></span
+              ><span class="mode-copy"
+                ><span class="mode-title">Visualizer</span
+                ><span class="mode-desc">Ambient waves of light</span></span
+              >
+            </button>
+            <button
+              class="mode-button"
+              type="button"
+              data-mode="fireflies"
+              aria-pressed="false"
+            >
+              <span class="mode-art"
+                ><img
+                  src="assets/modes/fireflies.svg"
+                  alt=""
+                  loading="lazy" /></span
+              ><span class="mode-copy"
+                ><span class="mode-title">Fireflies</span
+                ><span class="mode-desc">Soft floating lights</span></span
+              >
+            </button>
+            <button
+              class="mode-button"
+              type="button"
+              data-mode="spots"
+              aria-pressed="false"
+            >
+              <span class="mode-art"
+                ><img
+                  src="assets/modes/spots.svg"
+                  alt=""
+                  loading="lazy" /></span
+              ><span class="mode-copy"
+                ><span class="mode-title">Particles</span
+                ><span class="mode-desc">Dynamic particles</span></span
+              >
+            </button>
+            <button
+              class="mode-button"
+              type="button"
+              data-mode="lines"
+              aria-pressed="false"
+            >
+              <span class="mode-art"
+                ><img
+                  src="assets/modes/lines.svg"
+                  alt=""
+                  loading="lazy" /></span
+              ><span class="mode-copy"
+                ><span class="mode-title">Lines</span
+                ><span class="mode-desc">Elegant light trails</span></span
+              >
+            </button>
+            <button
+              class="mode-button"
+              type="button"
+              data-mode="rain"
+              aria-pressed="false"
+            >
+              <span class="mode-art"
+                ><img src="assets/modes/rain.svg" alt="" loading="lazy" /></span
+              ><span class="mode-copy"
+                ><span class="mode-title">Rain</span
+                ><span class="mode-desc">Musical light drops</span></span
+              >
+            </button>
+          </div>
+        </div>
+        <div class="field">
+          <div class="field-title">Color palette</div>
+          <div class="palette-grid" aria-label="Color palette">
+            <button
+              class="palette-button"
+              type="button"
+              data-palette="warm"
+              aria-pressed="false"
+              aria-label="Warm palette"
+              title="Warm"
+              style="
+                --palette-preview: linear-gradient(
+                  135deg,
+                  #ff6b4b,
+                  #dc8c43,
+                  #d7b764
+                );
+              "
+            ></button>
+            <button
+              class="palette-button"
+              type="button"
+              data-palette="cool"
+              aria-pressed="true"
+              aria-label="Cool palette"
+              title="Cool"
+              style="
+                --palette-preview: linear-gradient(
+                  135deg,
+                  #3fc0cf,
+                  #4f79c8,
+                  #8065bd
+                );
+              "
+            ></button>
+            <button
+              class="palette-button"
+              type="button"
+              data-palette="pastel"
+              aria-pressed="false"
+              aria-label="Pastel palette"
+              title="Pastel"
+              style="
+                --palette-preview: linear-gradient(
+                  135deg,
+                  #dca7bc,
+                  #a9cadc,
+                  #c2b1d9
+                );
+              "
+            ></button>
+            <button
+              class="palette-button"
+              type="button"
+              data-palette="neon"
+              aria-pressed="false"
+              aria-label="Neon palette"
+              title="Neon"
+              style="
+                --palette-preview: linear-gradient(
+                  135deg,
+                  #31dca0,
+                  #2ec7d8,
+                  #d340b4
+                );
+              "
+            ></button>
+            <button
+              class="palette-button"
+              type="button"
+              data-palette="contrast"
+              aria-pressed="false"
+              aria-label="Contrast palette"
+              title="Contrast"
+              style="
+                --palette-preview: linear-gradient(
+                  135deg,
+                  #db4563 0 25%,
+                  #2cb4c5 25% 50%,
+                  #d3b938 50% 75%,
+                  #785bc3 75%
+                );
+              "
+            ></button>
+          </div>
+          <div class="palette-name" id="paletteName">Cool</div>
+        </div>
+        <div class="monitor">
+          <div class="metric">
+            <span>Event</span><strong id="eventValue">—</strong>
+          </div>
+          <div class="metric">
+            <span>Note</span><strong id="noteValue">—</strong>
+          </div>
+          <div class="metric">
+            <span>MIDI</span><strong id="midiValue">—</strong>
+          </div>
+          <div class="metric">
+            <span>Velocity</span><strong id="velocityValue">—</strong>
+          </div>
+        </div>
+        <div class="message" id="message">
+          Web MIDI works in current Chrome or Edge over HTTPS or localhost.
+        </div>
+      </section>
+      <section class="visual" id="visual">
+        <canvas id="canvas"></canvas>
+        <div class="visual-label" id="visualLabel">Live visual · Particles</div>
+        <button
+          class="fullscreen-button"
+          id="fullscreenButton"
+          type="button"
+          aria-label="Open visualization in fullscreen"
+          title="Fullscreen"
+        >
+          <svg
+            id="fullscreenIcon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M8 3H3v5"></path>
+            <path d="M16 3h5v5"></path>
+            <path d="M8 21H3v-5"></path>
+            <path d="M16 21h5v-5"></path>
+          </svg>
+        </button>
+      </section>
+    </main>
+    <script type="module" src="src/app.js"></script>
+  </body>
 </html>
