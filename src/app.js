@@ -36,7 +36,7 @@ let midiAccess = null,
   selectedInput = null,
   inputMode = "midi",
   visualizationMode = "aurora",
-  colorPalette = "cool",
+  colorPalette = "original",
   width = 0,
   height = 0,
   pixelRatio = 1,
@@ -48,7 +48,7 @@ const modeRenderer = new ModeRenderer({
   spots: () => new SpotsRenderer(),
   lines: () => new LinesRenderer(),
   visualizer: () =>
-    new VisualizerRenderer((note, offset = 0) =>
+    new VisualizerRenderer(colorPalette === "original" ? undefined : (note, offset = 0) =>
       paletteColor(note, offset, colorPalette),
     ),
 });
@@ -92,7 +92,7 @@ function emitNoteOn(note, velocity = 92, source = "Keyboard") {
   noteValue.textContent = noteName(note);
   midiValue.textContent = note;
   velocityValue.textContent = velocity;
-  modeRenderer.noteOn(note, velocity, paletteColor(note, 0, colorPalette));
+  modeRenderer.noteOn(note, velocity, colorPalette === "original" ? undefined : paletteColor(note, 0, colorPalette));
   message.textContent = source;
 }
 function emitNoteOff(note, velocity = 0, source = "Keyboard") {
@@ -161,12 +161,12 @@ function setVisualizationMode(mode) {
   visualLabel.textContent = `Live visual · ${{ spots: "Particles", lines: "Lines", rain: "Rain", aurora: "Aurora", visualizer: "Visualizer", fireflies: "Fireflies" }[mode]}`;
 }
 function setColorPalette(p) {
-  if (!palettes[p]) return;
+  if (p !== "original" && !palettes[p]) return;
   colorPalette = p;
   paletteButtons.forEach((b) =>
     b.setAttribute("aria-pressed", String(b.dataset.palette === p)),
   );
-  paletteName.textContent = palettes[p].label;
+  paletteName.textContent = p === "original" ? "Original · mode colors" : palettes[p].label;
   clearVisuals();
 }
 function updateDeviceList() {
@@ -279,7 +279,7 @@ function updateFullscreenState() {
 function animate(t) {
   requestAnimationFrame(animate);
   if (t - lastFrameTime < 15.5) return;
-  const delta = lastFrameTime ? Math.min(32, t - lastFrameTime) : 16.67;
+  const delta = lastFrameTime ? Math.min(50, t - lastFrameTime) : 16.67;
   lastFrameTime = t;
   modeRenderer.updateAndDraw(context, delta / 1000);
 }
@@ -305,7 +305,7 @@ window.addEventListener("resize", () => {
   resizeCanvas();
 });
 updateKeyboardLabel();
-paletteName.textContent = palettes[colorPalette].label;
+paletteName.textContent = "Original · mode colors";
 modeRenderer.select(visualizationMode);
 visualLabel.textContent = "Live visual · Aurora";
 setInputMode("midi");

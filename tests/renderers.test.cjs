@@ -32,6 +32,7 @@ function canvasRecorder() {
         `gradient stop lies in [0, 1]: ${offset}`,
       );
       assert.equal(typeof color, "string");
+      assert.doesNotMatch(color, /NaN|Infinity|undefined/);
     },
   });
   const methods = new Set([
@@ -116,6 +117,19 @@ for (const name of ["aurora", "fireflies", "rain", "spots", "lines", "visualizer
     assert.ok(calls.length > 0, "renderer issued canvas drawing commands");
   });
 }
+
+test("all six modes render their original colors without a palette override", async () => {
+  for (const name of ["aurora", "fireflies", "rain", "spots", "lines", "visualizer"]) {
+    const Renderer = await loadRenderer(name);
+    const renderer = new Renderer();
+    const { ctx, calls } = canvasRecorder();
+    renderer.resize(640, 640);
+    frame(renderer, ctx, 1, 0);
+    for (const note of [36, 60, 84]) renderer.noteOn(note, 120);
+    frame(renderer, ctx, 4, 1 / 30);
+    assert.ok(calls.length > 0, `${name} draws with its native colors`);
+  }
+});
 
 test("fireflies begin only after a note and fade away after release", async () => {
   const Renderer = await loadRenderer("fireflies");

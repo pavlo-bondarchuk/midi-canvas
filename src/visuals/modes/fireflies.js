@@ -21,44 +21,46 @@ export default class FirefliesRenderer {
   noteOn(note, velocity = 90, color) {
     const strength = clamp(velocity / 127, 0.12, 1);
     const x = this.width * (0.1 + clamp((note - 21) / 87, 0, 1) * 0.8);
-    const y = this.height * (0.35 + Math.random() * 0.35);
+    const y = this.height * (0.08 + Math.random() * 0.84);
     const hue =
       typeof color?.hue === "number" ? color.hue : 38 + Math.random() * 14;
-    const count = 3 + Math.round(strength * 5);
+    // A played note blooms into a loose cloud of fireflies rather than a few
+    // hard points. Their differing depths make the soft halos overlap.
+    const count = 8 + Math.round(strength * 8);
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * TAU;
-      const radius = 3 + Math.random() * 22;
+      const radius = Math.min(this.width, this.height) * (0.02 + Math.random() * 0.085);
       this.lights.push({
         note,
         released: false,
         pendingRelease: false,
-        x: x + Math.cos(angle) * radius,
+        x: x + Math.cos(angle) * radius + (Math.random() - 0.5) * this.width * 0.08,
         y: y + Math.sin(angle) * radius,
         originX: x,
         originY: y,
         phase: angle,
         phaseSpeed:
           (Math.random() < 0.5 ? -1 : 1) * (1.1 + Math.random() * 2.1),
-        radius: 7 + Math.random() * 20,
-        radialSpeed: 4 + Math.random() * 13,
+        radius: Math.min(this.width, this.height) * (0.018 + Math.random() * 0.035),
+        radialSpeed: 10 + Math.random() * 28,
         driftPhase: Math.random() * TAU,
         driftSpeed: 0.3 + Math.random() * 0.8,
-        drift: 5 + Math.random() * 24,
+        drift: Math.min(this.width, this.height) * (0.018 + Math.random() * 0.06),
         vx: (Math.random() - 0.5) * 12,
         vy: (Math.random() - 0.5) * 12,
         strength: strength * (0.62 + Math.random() * 0.38),
         hue: hue + (Math.random() - 0.5) * 13,
         life: 5.5 + Math.random() * 4,
         age: 0,
-        size: 1.2 + strength * (1.5 + Math.random() * 1.8),
+        size: 0.4 + Math.random() * 13.2,
         phaseOffset: Math.random() * TAU,
       });
     }
     // A compact solar flare: curved radial filaments, not a generic circular ring.
-    const sparkCount = 32 + Math.round(strength * 26);
+    const sparkCount = 22 + Math.round(strength * 24);
     for (let i = 0; i < sparkCount; i++) {
       const angle = (i / sparkCount) * TAU + (Math.random() - 0.5) * 0.19;
-      const speed = 70 + Math.random() * (100 + strength * 220);
+      const speed = 35 + Math.random() * (65 + strength * 150);
       this.sparks.push({
         x,
         y,
@@ -150,7 +152,7 @@ export default class FirefliesRenderer {
       ctx.strokeStyle = `hsla(${spark.hue},100%,72%,${alpha})`;
       ctx.lineWidth = spark.width * (1 - p * 0.65);
       ctx.stroke();
-      ctx.fillStyle = `hsla(${spark.hue},100%,88%,${alpha})`;
+      ctx.fillStyle = `hsla(${spark.hue},100%,72%,${alpha * 0.76})`;
       ctx.beginPath();
       ctx.arc(x, y, 0.7 + (1 - p) * 1.4, 0, TAU);
       ctx.fill();
@@ -181,20 +183,21 @@ export default class FirefliesRenderer {
         Math.sin(light.driftPhase) * light.drift * 0.35;
       const pulse = 0.78 + 0.22 * Math.sin(this.time * 4.2 + light.phaseOffset);
       const core = light.size * pulse;
-      const haloRadius = core * (6 + alpha * 4);
+      const haloRadius = core * (9 + alpha * 8);
       const glow = ctx.createRadialGradient(x, y, 0, x, y, haloRadius);
-      glow.addColorStop(0, `hsla(${light.hue},100%,94%,${alpha})`);
-      glow.addColorStop(0.08, `hsla(${light.hue},100%,70%,${alpha * 0.95})`);
+      glow.addColorStop(0, `hsla(${light.hue},100%,77%,${alpha * 0.92})`);
+      glow.addColorStop(0.08, `hsla(${light.hue},100%,63%,${alpha * 0.82})`);
       glow.addColorStop(
         0.25,
-        `hsla(${light.hue - 8},100%,53%,${alpha * 0.34})`,
+        `hsla(${light.hue - 8},100%,48%,${alpha * 0.44})`,
       );
+      glow.addColorStop(0.62, `hsla(${light.hue - 12},100%,45%,${alpha * 0.15})`);
       glow.addColorStop(1, `hsla(${light.hue - 14},100%,40%,0)`);
       ctx.fillStyle = glow;
       ctx.beginPath();
       ctx.arc(x, y, haloRadius, 0, TAU);
       ctx.fill();
-      ctx.fillStyle = `rgba(255,250,204,${alpha})`;
+      ctx.fillStyle = `hsla(${light.hue + 8},100%,66%,${alpha * 0.92})`;
       ctx.beginPath();
       ctx.arc(x, y, core * 0.55, 0, TAU);
       ctx.fill();
@@ -215,7 +218,7 @@ export default class FirefliesRenderer {
     for (const flash of this.trails) {
       flash.life -= dt;
       if (flash.life <= 0) continue;
-      const a = flash.life * flash.strength * 0.27;
+      const a = flash.life * flash.strength * 0.19;
       const g = ctx.createRadialGradient(
         flash.x,
         flash.y,
@@ -224,7 +227,7 @@ export default class FirefliesRenderer {
         flash.y,
         26 + (0.72 - flash.life) * 48,
       );
-      g.addColorStop(0, `hsla(${flash.hue},100%,84%,${a})`);
+      g.addColorStop(0, `hsla(${flash.hue},100%,72%,${a})`);
       g.addColorStop(1, `hsla(${flash.hue},100%,58%,0)`);
       ctx.fillStyle = g;
       ctx.beginPath();

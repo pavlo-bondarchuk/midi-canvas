@@ -57,7 +57,7 @@
             >
               <span class="mode-art"
                 ><img
-                  src="assets/modes/aurora.svg"
+                  src="assets/modes/aurora.png"
                   alt=""
                   loading="lazy" /></span
               ><span class="mode-copy"
@@ -73,7 +73,7 @@
             >
               <span class="mode-art"
                 ><img
-                  src="assets/modes/visualizer.svg"
+                  src="assets/modes/visualizer.png"
                   alt=""
                   loading="lazy" /></span
               ><span class="mode-copy"
@@ -89,7 +89,7 @@
             >
               <span class="mode-art"
                 ><img
-                  src="assets/modes/fireflies.svg"
+                  src="assets/modes/fireflies.png"
                   alt=""
                   loading="lazy" /></span
               ><span class="mode-copy"
@@ -105,7 +105,7 @@
             >
               <span class="mode-art"
                 ><img
-                  src="assets/modes/spots.svg"
+                  src="assets/modes/spots.png"
                   alt=""
                   loading="lazy" /></span
               ><span class="mode-copy"
@@ -121,7 +121,7 @@
             >
               <span class="mode-art"
                 ><img
-                  src="assets/modes/lines.svg"
+                  src="assets/modes/lines.png"
                   alt=""
                   loading="lazy" /></span
               ><span class="mode-copy"
@@ -136,7 +136,7 @@
               aria-pressed="false"
             >
               <span class="mode-art"
-                ><img src="assets/modes/rain.svg" alt="" loading="lazy" /></span
+                ><img src="assets/modes/rain.png" alt="" loading="lazy" /></span
               ><span class="mode-copy"
                 ><span class="mode-title">Rain</span
                 ><span class="mode-desc">Musical light drops</span></span
@@ -147,6 +147,7 @@
         <div class="field">
           <div class="field-title">Color palette</div>
           <div class="palette-grid" aria-label="Color palette">
+            <button class="palette-button" type="button" data-palette="original" aria-pressed="true" aria-label="Original mode colors" title="Original mode colors" style="--palette-preview:conic-gradient(#ffb42b,#ff278c,#7849ff,#087cff,#16e5bf,#ffb42b)"></button>
             <button
               class="palette-button"
               type="button"
@@ -167,7 +168,7 @@
               class="palette-button"
               type="button"
               data-palette="cool"
-              aria-pressed="true"
+              aria-pressed="false"
               aria-label="Cool palette"
               title="Cool"
               style="
@@ -229,7 +230,7 @@
               "
             ></button>
           </div>
-          <div class="palette-name" id="paletteName">Cool</div>
+          <div class="palette-name" id="paletteName">Original · mode colors</div>
         </div>
         <div class="monitor">
           <div class="metric">
@@ -251,7 +252,7 @@
       </section>
       <section class="visual" id="visual">
         <canvas id="canvas"></canvas>
-        <div class="visual-label" id="visualLabel">Live visual · Particles</div>
+        <div class="visual-label" id="visualLabel">Live visual · Aurora</div>
         <button
           class="fullscreen-button"
           id="fullscreenButton"

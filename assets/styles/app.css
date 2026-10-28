@@ -183,8 +183,9 @@ select:focus-visible {
 .mode-button {
   position: relative;
   display: flex;
-  align-items: flex-end;
-  min-height: 178px;
+  flex-direction: column;
+  align-items: stretch;
+  min-height: 0;
   border: 1px solid var(--border);
   border-radius: 20px;
   padding: 0;
@@ -206,8 +207,10 @@ select:focus-visible {
   box-shadow: 0 0 0 1px rgba(120, 215, 231, 0.09);
 }
 .mode-art {
-  position: absolute;
-  inset: 0 0 58px;
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
   background: #05070b;
   overflow: hidden;
 }
@@ -239,7 +242,7 @@ select:focus-visible {
 }
 .palette-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
 }
 .palette-button {
