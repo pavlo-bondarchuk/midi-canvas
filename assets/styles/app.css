@@ -387,6 +387,43 @@ select:focus-visible {
   width: 18px;
   height: 18px;
 }
+.aurora-controls {
+  position: absolute;
+  z-index: 3;
+  bottom: 22px;
+  left: 22px;
+  width: min(310px, calc(100% - 44px));
+  padding: 13px 15px;
+  border: 1px solid rgba(160, 225, 214, 0.12);
+  border-radius: 12px;
+  background: rgba(5, 17, 23, 0.66);
+  backdrop-filter: blur(12px);
+}
+.aurora-controls[hidden] {
+  display: none;
+}
+.aurora-controls label {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+  color: #a8bfc0;
+}
+.aurora-controls output {
+  color: #b7eed5;
+}
+.aurora-controls input {
+  width: 100%;
+  margin: 12px 0 7px;
+  accent-color: #91eeb6;
+  cursor: pointer;
+}
+.aurora-controls span {
+  display: block;
+  font-size: 10px;
+  line-height: 1.5;
+  color: #819696;
+}
 .button:focus-visible,
 .mode-button:focus-visible,
 .palette-button:focus-visible,

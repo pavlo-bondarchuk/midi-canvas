@@ -31,6 +31,9 @@ const connectButton = document.getElementById("connectButton"),
   modeButtons = [...document.querySelectorAll(".mode-button")],
   paletteButtons = [...document.querySelectorAll(".palette-button")],
   paletteName = document.getElementById("paletteName"),
+  auroraControls = document.getElementById("auroraControls"),
+  auroraStormInput = document.getElementById("auroraStorm"),
+  auroraStormLabel = document.getElementById("auroraStormLabel"),
   context = canvas.getContext("2d", { alpha: false });
 let midiAccess = null,
   selectedInput = null,
@@ -41,6 +44,7 @@ let midiAccess = null,
   height = 0,
   pixelRatio = 1,
   lastFrameTime = 0;
+let auroraStorm = 0.38;
 const modeRenderer = new ModeRenderer({
   aurora: () => new AuroraRenderer(),
   fireflies: () => new FirefliesRenderer(),
@@ -48,8 +52,10 @@ const modeRenderer = new ModeRenderer({
   spots: () => new SpotsRenderer(),
   lines: () => new LinesRenderer(),
   visualizer: () =>
-    new VisualizerRenderer(colorPalette === "original" ? undefined : (note, offset = 0) =>
-      paletteColor(note, offset, colorPalette),
+    new VisualizerRenderer(
+      colorPalette === "original"
+        ? undefined
+        : (note, offset = 0) => paletteColor(note, offset, colorPalette),
     ),
 });
 const keyboardInput = new KeyboardInput({
@@ -92,7 +98,13 @@ function emitNoteOn(note, velocity = 92, source = "Keyboard") {
   noteValue.textContent = noteName(note);
   midiValue.textContent = note;
   velocityValue.textContent = velocity;
-  modeRenderer.noteOn(note, velocity, colorPalette === "original" ? undefined : paletteColor(note, 0, colorPalette));
+  modeRenderer.noteOn(
+    note,
+    velocity,
+    colorPalette === "original"
+      ? undefined
+      : paletteColor(note, 0, colorPalette),
+  );
   message.textContent = source;
 }
 function emitNoteOff(note, velocity = 0, source = "Keyboard") {
@@ -143,6 +155,7 @@ function resizeCanvas() {
 }
 function clearVisuals() {
   modeRenderer.reset();
+  modeRenderer.active?.setStorm?.(auroraStorm);
   resizeCanvas();
 }
 function setVisualizationMode(mode) {
@@ -154,6 +167,8 @@ function setVisualizationMode(mode) {
     return;
   visualizationMode = mode;
   modeRenderer.select(mode);
+  modeRenderer.active?.setStorm?.(auroraStorm);
+  auroraControls.hidden = mode !== "aurora";
   resizeCanvas();
   modeButtons.forEach((b) =>
     b.setAttribute("aria-pressed", String(b.dataset.mode === mode)),
@@ -166,7 +181,8 @@ function setColorPalette(p) {
   paletteButtons.forEach((b) =>
     b.setAttribute("aria-pressed", String(b.dataset.palette === p)),
   );
-  paletteName.textContent = p === "original" ? "Original · mode colors" : palettes[p].label;
+  paletteName.textContent =
+    p === "original" ? "Original · mode colors" : palettes[p].label;
   clearVisuals();
 }
 function updateDeviceList() {
@@ -287,6 +303,29 @@ connectButton.addEventListener("click", connectMIDI);
 inputSource.addEventListener("change", (e) => setInputMode(e.target.value));
 deviceSelect.addEventListener("change", (e) => selectInput(e.target.value));
 fullscreenButton.addEventListener("click", toggleFullscreen);
+auroraStormInput.addEventListener("input", () => {
+  auroraStorm = Number(auroraStormInput.value) / 100;
+  modeRenderer.active?.setStorm?.(auroraStorm);
+  auroraStormLabel.value =
+    auroraStorm < 0.3
+      ? "Quiet arc"
+      : auroraStorm < 0.72
+        ? "Active curtains"
+        : "Storm overhead";
+});
+visual.addEventListener("click", (event) => {
+  if (
+    visualizationMode !== "aurora" ||
+    event.target.closest("button, .aurora-controls")
+  )
+    return;
+  const bounds = visual.getBoundingClientRect();
+  if (event.clientY - bounds.top < bounds.height * 0.7) {
+    modeRenderer.active?.triggerSubstorm?.(
+      (event.clientX - bounds.left) / bounds.width,
+    );
+  }
+});
 bindModeControls(
   modeButtons,
   paletteButtons,
@@ -307,6 +346,7 @@ window.addEventListener("resize", () => {
 updateKeyboardLabel();
 paletteName.textContent = "Original · mode colors";
 modeRenderer.select(visualizationMode);
+modeRenderer.active?.setStorm?.(auroraStorm);
 visualLabel.textContent = "Live visual · Aurora";
 setInputMode("midi");
 resizeCanvas();

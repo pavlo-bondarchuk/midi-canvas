@@ -147,7 +147,24 @@
         <div class="field">
           <div class="field-title">Color palette</div>
           <div class="palette-grid" aria-label="Color palette">
-            <button class="palette-button" type="button" data-palette="original" aria-pressed="true" aria-label="Original mode colors" title="Original mode colors" style="--palette-preview:conic-gradient(#ffb42b,#ff278c,#7849ff,#087cff,#16e5bf,#ffb42b)"></button>
+            <button
+              class="palette-button"
+              type="button"
+              data-palette="original"
+              aria-pressed="true"
+              aria-label="Original mode colors"
+              title="Original mode colors"
+              style="
+                --palette-preview: conic-gradient(
+                  #ffb42b,
+                  #ff278c,
+                  #7849ff,
+                  #087cff,
+                  #16e5bf,
+                  #ffb42b
+                );
+              "
+            ></button>
             <button
               class="palette-button"
               type="button"
@@ -230,7 +247,9 @@
               "
             ></button>
           </div>
-          <div class="palette-name" id="paletteName">Original · mode colors</div>
+          <div class="palette-name" id="paletteName">
+            Original · mode colors
+          </div>
         </div>
         <div class="monitor">
           <div class="metric">
@@ -253,6 +272,23 @@
       <section class="visual" id="visual">
         <canvas id="canvas"></canvas>
         <div class="visual-label" id="visualLabel">Live visual · Aurora</div>
+        <div class="aurora-controls" id="auroraControls">
+          <label for="auroraStorm"
+            >Aurora intensity
+            <output id="auroraStormLabel" for="auroraStorm"
+              >Active curtains</output
+            ></label
+          >
+          <input
+            id="auroraStorm"
+            type="range"
+            min="0"
+            max="100"
+            value="38"
+            aria-label="Aurora intensity"
+          />
+          <span>Play notes or click the sky to brighten the curtains.</span>
+        </div>
         <button
           class="fullscreen-button"
           id="fullscreenButton"

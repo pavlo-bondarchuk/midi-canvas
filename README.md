@@ -7,7 +7,7 @@ A browser MIDI visualizer for digital pianos and MIDI keyboards. It runs as nati
 ```text
 index.html                     App shell and mode controls
 assets/
-  modes/                        SVG mode-card previews
+  modes/                        Original PNG mode-card previews
   styles/app.css                Application styles
 src/
   app.js                        Startup, orchestration, MIDI UI and animation loop
@@ -17,6 +17,7 @@ src/
   palette/palettes.js           Palette data and color helpers
   ui/mode-controls.js           Mode and palette button wiring
   visuals/renderer.js           Adapter for stateful visualization modes
+  visuals/aurora/radiance.js     Projected rays, spectral emission and tone mapping
   visuals/modes/
     aurora.js                   Aurora curtain renderer
     fireflies.js                Note-triggered firefly renderer
@@ -49,10 +50,26 @@ with its live renderer. **Reference frame · 4 seconds** runs the same note
 phrase for every mode and pauses the results side by side. The per-mode timing
 reports Canvas command submission time, not end-to-end display frame rate.
 
-Visual matching is iterative. The procedural aurora landscape still has less
-detail than the supplied image, and particle density, bloom and reflections
-need further visual tuning. The live renderers do not use the reference images
-as static visualization backgrounds.
+The live renderers do not use reference images as static visualization backgrounds.
+
+## Aurora Curtains
+
+Aurora's motion reference is [Aurora Curtains by Emergent Mind Labs](https://www.emergentmind.com/visualizations/aurora-curtains).
+The renderer independently projects four folded light curtains, accumulates
+altitude-dependent emission into a bounded floating-point RGB buffer, and
+tone-maps it with a soft glow. A dark shoreline separates the sky from its
+rippled lake reflection. Green dominates the lower curtain, with dim red
+emission above and a pink lower fringe during stronger storms.
+
+Use **Aurora intensity** for a quiet arc or an overhead storm. MIDI velocity,
+pitch and playing rate add smooth, localized surges; sustain extends the fade.
+Click the sky for a substorm. The other five palettes tint new note surges.
+The intensity control is shown only while Aurora is selected.
+
+Focused comparison: <http://localhost:8080/tools/reference-lab.html?mode=aurora>.
+The pure raster tests in `tests/aurora.test.cjs` exercise the actual light
+calculation without requiring browser Canvas; browser inspection is still
+needed to assess the final glow, composition and playback performance.
 
 ## Input
 
