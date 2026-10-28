@@ -1,31 +1,46 @@
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const mix = (a, b, t) => a + (b - a) * t;
 
-/** Layered polar-light curtains with slow undulation and note-driven energy. */
 export default class AuroraRenderer {
   constructor() {
     this.width = 1;
     this.height = 1;
     this.time = 0;
-    this.energy = 0;
-    this.targetEnergy = 0;
-    this.curtains = Array.from({ length: 3 }, (_, index) => ({
-      hue: [142, 171, 318][index],
-      phase: Math.random() * TAU,
-      speed: 0.035 + Math.random() * 0.045,
-      amplitude: 0.075 + Math.random() * 0.09,
-      frequency: 1.2 + Math.random() * 2.4,
-      drift: (Math.random() - 0.5) * 0.18,
-      depth: index / 2,
-    }));
-    this.stars = Array.from({ length: 130 }, () => ({
+    this.energy = 0.12;
+    this.targetEnergy = 0.12;
+    this.impulses = [];
+    this.curtains = [
+      this.makeCurtain(146, 0.22, 0.74, 0.24, 0.03),
+      this.makeCurtain(176, 0.38, 0.68, 0.19, -0.02),
+      this.makeCurtain(214, 0.56, 0.61, 0.16, 0.018),
+      this.makeCurtain(310, 0.72, 0.55, 0.14, -0.025),
+    ];
+    this.stars = Array.from({ length: 115 }, () => ({
       x: Math.random(),
-      y: Math.random() * 0.73,
-      r: 0.35 + Math.random() * 1.05,
+      y: Math.random() * 0.86,
+      radius: 0.35 + Math.random() * 0.85,
+      alpha: 0.08 + Math.random() * 0.22,
       phase: Math.random() * TAU,
-      twinkle: 0.25 + Math.random() * 0.8,
+      speed: 0.12 + Math.random() * 0.42,
     }));
-    this.strikes = [];
+  }
+
+  makeCurtain(hue, base, reach, amplitude, drift) {
+    return {
+      hue,
+      targetHue: hue,
+      base,
+      reach,
+      amplitude,
+      drift,
+      phase: Math.random() * TAU,
+      phase2: Math.random() * TAU,
+      speed: 0.035 + Math.random() * 0.035,
+      frequency: 0.52 + Math.random() * 0.42,
+      folds: 2.2 + Math.random() * 1.7,
+      breathing: Math.random() * TAU,
+    };
   }
 
   resize(width, height) {
@@ -33,198 +48,229 @@ export default class AuroraRenderer {
     this.height = Math.max(1, height);
   }
 
-  noteOn(note, velocity = 90) {
+  noteOn(note, velocity = 90, color) {
     const strength = clamp(velocity / 127, 0.08, 1);
-    this.targetEnergy = Math.min(
-      1.2,
-      this.targetEnergy + 0.18 + strength * 0.62,
-    );
-    this.strikes.push({
-      x: clamp((note - 21) / 87, 0, 1),
-      strength,
-      life: 1,
-      phase: Math.random() * TAU,
-    });
-    if (this.strikes.length > 18) this.strikes.shift();
+    const x = clamp((note - 21) / 87, 0, 1);
+    this.targetEnergy = clamp(this.targetEnergy + 0.1 + strength * 0.24, 0.12, 0.82);
+    this.impulses.push({ x, strength, life: 1, width: 0.035 + strength * 0.055 });
+    if (this.impulses.length > 12) this.impulses.shift();
+    if (color && Number.isFinite(color.hue)) {
+      const index = Math.min(this.curtains.length - 1, Math.floor(x * this.curtains.length));
+      this.curtains[index].targetHue = color.hue;
+    }
   }
 
   noteOff() {}
   sustain() {}
 
   updateAndDraw(ctx, dt = 1 / 60) {
-    const w = this.width,
-      h = this.height;
-    this.time += Math.min(0.05, dt);
-    this.targetEnergy *= Math.exp(-0.22 * dt);
-    this.energy +=
-      (this.targetEnergy - this.energy) * (1 - Math.exp(-1.2 * dt));
-    ctx.globalCompositeOperation = "source-over";
+    const delta = Math.min(0.05, dt);
+    this.time += delta;
+    this.targetEnergy = mix(this.targetEnergy, 0.12, 1 - Math.exp(-0.22 * delta));
+    this.energy = mix(this.energy, this.targetEnergy, 1 - Math.exp(-1.15 * delta));
+
+    for (const impulse of this.impulses) impulse.life -= delta * 0.34;
+    this.impulses = this.impulses.filter((impulse) => impulse.life > 0);
+
+    for (const curtain of this.curtains) {
+      curtain.hue = this.mixHue(curtain.hue, curtain.targetHue, 1 - Math.exp(-0.3 * delta));
+      curtain.targetHue = this.mixHue(curtain.targetHue, curtain.hue, 1 - Math.exp(-0.05 * delta));
+    }
+
+    this.drawSky(ctx);
+    this.drawStars(ctx);
+
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    for (let i = this.curtains.length - 1; i >= 0; i--) this.drawCurtain(ctx, this.curtains[i], i);
+    ctx.restore();
+
+    this.drawVignette(ctx);
+  }
+
+  mixHue(a, b, t) {
+    let d = ((b - a + 540) % 360) - 180;
+    return (a + d * t + 360) % 360;
+  }
+
+  drawSky(ctx) {
+    const w = this.width;
+    const h = this.height;
     const sky = ctx.createLinearGradient(0, 0, 0, h);
-    sky.addColorStop(0, "#030815");
-    sky.addColorStop(0.52, "#071321");
-    sky.addColorStop(0.78, "#101a2b");
-    sky.addColorStop(1, "#03050b");
+    sky.addColorStop(0, "#02050d");
+    sky.addColorStop(0.45, "#06101c");
+    sky.addColorStop(0.8, "#071018");
+    sky.addColorStop(1, "#020407");
+    ctx.globalCompositeOperation = "source-over";
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, w, h);
 
-    // Fine stars add scale and depth without competing with the curtains.
+    const horizon = ctx.createRadialGradient(w * 0.5, h * 0.82, 0, w * 0.5, h * 0.82, w * 0.72);
+    horizon.addColorStop(0, `rgba(25,70,73,${0.035 + this.energy * 0.035})`);
+    horizon.addColorStop(0.5, "rgba(10,28,38,.025)");
+    horizon.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = horizon;
+    ctx.fillRect(0, h * 0.45, w, h * 0.55);
+  }
+
+  drawStars(ctx) {
+    const w = this.width;
+    const h = this.height;
     for (const star of this.stars) {
-      const alpha =
-        0.18 +
-        (0.5 + 0.5 * Math.sin(this.time * star.twinkle + star.phase)) * 0.48;
-      ctx.fillStyle = `rgba(207,229,255,${alpha})`;
+      const shimmer = 0.6 + 0.4 * Math.sin(this.time * star.speed + star.phase);
+      ctx.fillStyle = `rgba(196,219,238,${star.alpha * shimmer})`;
       ctx.beginPath();
-      ctx.arc(star.x * w, star.y * h, star.r, 0, TAU);
+      ctx.arc(star.x * w, star.y * h, star.radius, 0, TAU);
       ctx.fill();
     }
-
-    ctx.globalCompositeOperation = "screen";
-    for (const curtain of this.curtains) this.drawCurtain(ctx, curtain, w, h);
-    this.drawHorizon(ctx, w, h);
-    for (const strike of this.strikes) strike.life -= dt * 0.72;
-    this.strikes = this.strikes.filter((strike) => strike.life > 0);
-    ctx.globalCompositeOperation = "source-over";
   }
 
-  curtainPoint(c, u, h, layer = 0) {
+  localImpulse(u) {
+    let lift = 0;
+    let glow = 0;
+    for (const impulse of this.impulses) {
+      const d = (u - impulse.x) / impulse.width;
+      const influence = Math.exp(-d * d * 1.6) * impulse.life * impulse.strength;
+      lift += influence;
+      glow += influence;
+    }
+    return { lift: clamp(lift, 0, 1.4), glow: clamp(glow, 0, 1.4) };
+  }
+
+  edge(c, u, layer = 0) {
     const t = this.time;
-    const wave = Math.sin(u * TAU * c.frequency + c.phase + t * c.speed);
-    const fold = Math.sin(
-      u * TAU * (c.frequency * 2.17) - t * c.speed * 1.7 + c.phase * 0.63,
-    );
-    const broad = Math.sin(u * TAU * 0.48 + t * 0.16 + c.phase) * 0.04;
-    const noteLift = this.strikes.reduce((sum, strike) => {
-      const distance = Math.abs(u - strike.x);
-      return (
-        sum +
-        Math.exp(-(distance * distance) / 0.0028) *
-          strike.life *
-          strike.strength *
-          0.09
-      );
-    }, 0);
-    const lift =
-      0.08 +
-      c.depth * 0.12 +
-      wave * c.amplitude +
-      fold * c.amplitude * 0.38 +
-      broad -
-      noteLift;
-    return h * clamp(lift + layer * 0.035, 0.025, 0.56);
+    const slow = Math.sin(u * TAU * c.frequency + c.phase + t * c.speed);
+    const fold = Math.sin(u * TAU * c.folds - c.phase2 + t * c.speed * 0.63);
+    const micro = Math.sin(u * TAU * (c.folds * 2.7) + c.phase2 - t * c.speed * 0.38);
+    const breathing = Math.sin(t * 0.09 + c.breathing) * 0.035;
+    const impulse = this.localImpulse(u);
+    const y = c.base + breathing + slow * c.amplitude + fold * c.amplitude * 0.34 + micro * c.amplitude * 0.08 - impulse.lift * 0.085 + layer * 0.012;
+    return clamp(y, 0.035, 0.88);
   }
 
-  edgePoint(c, u, h) {
-    const noteLift = this.strikes.reduce((sum, strike) => {
-      const distance = Math.abs(u - strike.x);
-      return sum + Math.exp(-(distance * distance) / 0.0028) * strike.life * strike.strength * 0.055;
-    }, 0);
-    return h * (0.49 + c.depth * 0.105 +
-      0.058 * Math.sin(u * 7.2 + c.phase + this.time * 0.18) +
-      0.024 * Math.sin(u * 17.3 - c.phase * 0.72 + this.time * 0.31) +
-      0.014 * Math.sin(u * 29 + c.phase * 1.6 - this.time * 0.24) - noteLift);
+  curtainDepth(c, u, layer = 0) {
+    const t = this.time;
+    const fold = 0.5 + 0.5 * Math.sin(u * TAU * c.folds + c.phase2 - t * c.speed * 0.45);
+    const slow = 0.5 + 0.5 * Math.sin(u * TAU * (c.frequency * 0.66) - c.phase + t * c.speed * 0.25);
+    const impulse = this.localImpulse(u);
+    return clamp(c.reach * (0.78 + fold * 0.22 + slow * 0.08 + impulse.glow * 0.06 - layer * 0.045), 0.25, 0.96);
   }
 
-  drawCurtain(ctx, c, w, h) {
+  drawCurtain(ctx, c, index) {
+    const w = this.width;
+    const h = this.height;
     const energy = clamp(this.energy, 0, 1);
-    const layers = 1;
-    const segments = 220;
+    const layers = 3;
+    const segments = 100;
+
     for (let layer = 0; layer < layers; layer++) {
-      const yOffset = layer * h * 0.035;
-      const topPath = [];
-      const bottomPath = [];
+      const hue = (c.hue + layer * 10 + 360) % 360;
+      const top = [];
+      const bottom = [];
+      let minY = h;
+      let maxY = 0;
+
       for (let i = 0; i <= segments; i++) {
         const u = i / segments;
-        const x = u * w;
-        const y = this.curtainPoint(c, u, h) + yOffset;
-        const lower = this.edgePoint(c, u, h) + yOffset;
-        topPath.push([x, y]);
-        bottomPath.push([x + c.drift * h * 0.16, lower]);
+        const edgeY = this.edge(c, u, layer) * h;
+        const depth = this.curtainDepth(c, u, layer) * h;
+        const lower = Math.min(h * 1.02, edgeY + depth);
+        const drift = Math.sin(u * TAU * 0.72 + c.phase + this.time * 0.04) * w * 0.012 + c.drift * w;
+        top.push([u * w + drift * 0.18, edgeY]);
+        bottom.push([u * w + drift, lower]);
+        minY = Math.min(minY, edgeY);
+        maxY = Math.max(maxY, lower);
       }
-      const minY = Math.max(0, Math.min(...topPath.map((p) => p[1])));
-      const maxY = Math.min(h, Math.max(...bottomPath.map((p) => p[1])));
-      if (maxY <= minY) continue;
-      const gradient = ctx.createLinearGradient(0, minY, 0, maxY);
-      const alpha =
-        (0.008 + energy * 0.025) * (1 - layer * 0.3) * (1 - c.depth * 0.28);
-      gradient.addColorStop(0, `hsla(${c.hue},100%,58%,0)`);
-      gradient.addColorStop(0.18, `hsla(${c.hue},100%,55%,${alpha * 0.18})`);
-      gradient.addColorStop(0.42, `hsla(${c.hue},100%,52%,${alpha * 0.58})`);
-      gradient.addColorStop(0.7, `hsla(${c.hue + 8},100%,58%,${alpha * 0.42})`);
-      gradient.addColorStop(0.9, `hsla(${c.hue},100%,45%,${alpha * 0.2})`);
-      gradient.addColorStop(1, `hsla(${c.hue},100%,38%,0)`);
+
+      const body = ctx.createLinearGradient(0, minY, 0, maxY);
+      const alpha = (0.018 + energy * 0.052) * (1 - layer * 0.18) * (1 - index * 0.055);
+      body.addColorStop(0, `hsla(${hue},86%,62%,0)`);
+      body.addColorStop(0.08, `hsla(${hue},88%,61%,${alpha * 0.18})`);
+      body.addColorStop(0.28, `hsla(${hue},91%,59%,${alpha * 0.75})`);
+      body.addColorStop(0.56, `hsla(${(hue + 14) % 360},93%,60%,${alpha})`);
+      body.addColorStop(0.78, `hsla(${hue},88%,56%,${alpha * 0.48})`);
+      body.addColorStop(1, `hsla(${hue},82%,46%,0)`);
+
       ctx.beginPath();
-      topPath.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-      for (let i = bottomPath.length - 1; i >= 0; i--)
-        ctx.lineTo(...bottomPath[i]);
+      top.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      for (let i = bottom.length - 1; i >= 0; i--) ctx.lineTo(bottom[i][0], bottom[i][1]);
       ctx.closePath();
-      ctx.fillStyle = gradient;
+      ctx.fillStyle = body;
       ctx.fill();
 
-      // Dense, overlapping color columns create a continuous luminous sheet.
-      const stripCount = clamp(Math.round(w * 0.9), 400, 600);
-      for (let i = 0; i < stripCount; i++) {
-        const u = (i + 0.5) / stripCount;
-        const upper = this.curtainPoint(c, u, h) + yOffset;
-        const lower = this.edgePoint(c, u, h) + yOffset;
-        const fold = 0.5 + 0.5 * Math.sin(u * TAU * c.frequency + c.phase + this.time * c.speed);
-        const secondaryFold = 0.5 + 0.5 * Math.sin(u * TAU * (c.frequency * 2.2) - c.phase + this.time * c.speed * 1.4);
-        const localNote = this.strikes.reduce((sum, strike) => {
-          const distance = Math.abs(u - strike.x);
-          return sum + Math.exp(-(distance * distance) / 0.0022) * strike.life * strike.strength;
-        }, 0);
-        const alpha = clamp(0.13 + fold * 0.13 + secondaryFold * 0.09 + energy * 0.12 + localNote * 0.4, 0.1, 0.58);
-        const fadeLength = Math.max(h * 0.12, lower - upper);
-        const top = Math.max(0, lower - fadeLength * (0.78 + secondaryFold * 0.28 + localNote * 0.16));
-        const tilt = Math.sin(u * 5.1 + c.phase + this.time * 0.13) * w * 0.014 + c.drift * w * 0.035;
-        const stripWidth = (w / stripCount) * (1.8 + fold * 0.28);
-        const gradient = ctx.createLinearGradient(0, top, 0, lower);
-        gradient.addColorStop(0, `hsla(${c.hue + 145},100%,62%,0)`);
-        gradient.addColorStop(0.12, `hsla(${c.hue + 145},100%,60%,${alpha * 0.56})`);
-        gradient.addColorStop(0.36, `hsla(${c.hue + 115},100%,55%,${alpha * 0.78})`);
-        gradient.addColorStop(0.68, `hsla(${c.hue},100%,54%,${alpha * 0.88})`);
-        gradient.addColorStop(0.9, `hsla(${c.hue + 8},100%,61%,${alpha})`);
-        gradient.addColorStop(1, `hsla(${c.hue},100%,58%,${alpha * 0.52})`);
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.moveTo(u * w, top);
-        ctx.lineTo(u * w + stripWidth, top);
-        ctx.lineTo(u * w + stripWidth + tilt, lower);
-        ctx.lineTo(u * w + tilt, lower);
-        ctx.closePath();
-        ctx.fill();
-      }
-
-      // One vivid curved hem per curtain carries the glow without parallel outlines.
-      const edgeGradient = ctx.createLinearGradient(0, 0, w, 0);
-      edgeGradient.addColorStop(0, `hsla(${c.hue},100%,58%,0.1)`);
-      edgeGradient.addColorStop(0.28, `hsla(${c.hue + 8},100%,61%,${0.24 + energy * 0.2})`);
-      edgeGradient.addColorStop(0.58, `hsla(${c.hue + 24},100%,65%,${0.2 + energy * 0.18})`);
-      edgeGradient.addColorStop(0.84, `hsla(${c.hue},100%,61%,${0.24 + energy * 0.2})`);
-      edgeGradient.addColorStop(1, `hsla(${c.hue},100%,56%,0.08)`);
-      ctx.beginPath();
-      for (let i = 0; i <= segments; i++) {
-        const u = i / segments;
-        const y = this.edgePoint(c, u, h) + yOffset;
-        i ? ctx.lineTo(u * w, y) : ctx.moveTo(u * w, y);
-      }
-      ctx.strokeStyle = edgeGradient;
-      ctx.globalAlpha = 0.38;
-      ctx.lineWidth = 17 + energy * 13;
-      ctx.shadowColor = `hsla(${c.hue},100%,58%,0.65)`;
-      ctx.shadowBlur = 26 + energy * 18;
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-      ctx.shadowBlur = 0;
+      this.drawFibers(ctx, c, hue, layer, energy);
+      this.drawHem(ctx, c, hue, layer, energy);
     }
   }
 
-  drawHorizon(ctx, w, h) {
-    const baseY = h * 0.62;
-    const glow = ctx.createLinearGradient(0, baseY - h * 0.09, 0, h);
-    glow.addColorStop(0, `rgba(55,255,171,${0.012 + this.energy * 0.035})`);
-    glow.addColorStop(0.25, "rgba(40,190,155,0.012)");
-    glow.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, baseY - h * 0.09, w, h * 0.3);
+  drawFibers(ctx, c, hue, layer, energy) {
+    const w = this.width;
+    const h = this.height;
+    const count = clamp(Math.round(w / 9), 70, 150);
+    ctx.lineCap = "round";
+
+    for (let i = 0; i < count; i++) {
+      const u = (i + 0.5) / count;
+      const edgeY = this.edge(c, u, layer) * h;
+      const depth = this.curtainDepth(c, u, layer) * h;
+      const lower = Math.min(h * 1.015, edgeY + depth);
+      const impulse = this.localImpulse(u);
+      const fold = 0.5 + 0.5 * Math.sin(u * TAU * c.folds + c.phase2 - this.time * c.speed * 0.48);
+      const alpha = clamp(0.018 + fold * 0.04 + energy * 0.042 + impulse.glow * 0.07, 0.012, 0.15) * (1 - layer * 0.18);
+      const x = u * w;
+      const tilt = Math.sin(u * TAU * 0.75 + c.phase + this.time * 0.04) * w * 0.012 + c.drift * w;
+      const fiberTop = mix(edgeY, lower, 0.04 + fold * 0.08);
+      const gradient = ctx.createLinearGradient(0, fiberTop, 0, lower);
+      gradient.addColorStop(0, `hsla(${(hue + 36) % 360},95%,72%,0)`);
+      gradient.addColorStop(0.12, `hsla(${(hue + 22) % 360},96%,68%,${alpha * 0.32})`);
+      gradient.addColorStop(0.48, `hsla(${hue},96%,62%,${alpha})`);
+      gradient.addColorStop(0.82, `hsla(${(hue + 8) % 360},92%,58%,${alpha * 0.42})`);
+      gradient.addColorStop(1, `hsla(${hue},88%,52%,0)`);
+      ctx.strokeStyle = gradient;
+      ctx.lineWidth = 0.7 + fold * 1.1;
+      ctx.beginPath();
+      ctx.moveTo(x, fiberTop);
+      ctx.bezierCurveTo(x + tilt * 0.18, mix(fiberTop, lower, 0.35), x + tilt * 0.72, mix(fiberTop, lower, 0.72), x + tilt, lower);
+      ctx.stroke();
+    }
+  }
+
+  drawHem(ctx, c, hue, layer, energy) {
+    const w = this.width;
+    const h = this.height;
+    const segments = 130;
+    const gradient = ctx.createLinearGradient(0, 0, w, 0);
+    gradient.addColorStop(0, `hsla(${hue},90%,62%,0)`);
+    gradient.addColorStop(0.18, `hsla(${(hue + 16) % 360},95%,68%,${0.07 + energy * 0.07})`);
+    gradient.addColorStop(0.5, `hsla(${hue},98%,70%,${0.12 + energy * 0.08})`);
+    gradient.addColorStop(0.82, `hsla(${(hue + 12) % 360},95%,66%,${0.07 + energy * 0.07})`);
+    gradient.addColorStop(1, `hsla(${hue},90%,62%,0)`);
+    ctx.strokeStyle = gradient;
+    ctx.lineWidth = 1.2 + energy * 1.6;
+    ctx.shadowColor = `hsla(${hue},92%,62%,${0.1 + energy * 0.08})`;
+    ctx.shadowBlur = 5 + energy * 5;
+    ctx.beginPath();
+    for (let i = 0; i <= segments; i++) {
+      const u = i / segments;
+      const edgeY = this.edge(c, u, layer) * h;
+      const depth = this.curtainDepth(c, u, layer) * h;
+      const lower = Math.min(h * 1.01, edgeY + depth);
+      const drift = Math.sin(u * TAU * 0.72 + c.phase + this.time * 0.04) * w * 0.012 + c.drift * w;
+      i ? ctx.lineTo(u * w + drift, lower) : ctx.moveTo(u * w + drift, lower);
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  drawVignette(ctx) {
+    const w = this.width;
+    const h = this.height;
+    ctx.globalCompositeOperation = "source-over";
+    const vignette = ctx.createRadialGradient(w * 0.5, h * 0.47, Math.min(w, h) * 0.2, w * 0.5, h * 0.47, Math.max(w, h) * 0.72);
+    vignette.addColorStop(0, "rgba(0,0,0,0)");
+    vignette.addColorStop(0.72, "rgba(0,0,0,.06)");
+    vignette.addColorStop(1, "rgba(0,0,0,.32)");
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, w, h);
   }
 }
