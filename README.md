@@ -38,6 +38,22 @@ python3 -m http.server 8080
 
 Open <http://localhost:8080> in Chrome or Edge. Run the renderer and input checks with `npm test`.
 
+## Reference comparison
+
+The mode cards use the six supplied original PNG images in `assets/modes/`.
+The default **Original** palette preserves each mode's reference colors; the
+five alternate palettes tint new note events.
+
+Open <http://localhost:8080/tools/reference-lab.html> to compare each reference
+with its live renderer. **Reference frame · 4 seconds** runs the same note
+phrase for every mode and pauses the results side by side. The per-mode timing
+reports Canvas command submission time, not end-to-end display frame rate.
+
+Visual matching is iterative. The procedural aurora landscape still has less
+detail than the supplied image, and particle density, bloom and reflections
+need further visual tuning. The live renderers do not use the reference images
+as static visualization backgrounds.
+
 ## Input
 
 Connect a MIDI keyboard through the browser's Web MIDI API, or select Computer keyboard and use Z–M and Q–U. The arrow keys change the computer keyboard octave. Notes remain correctly paired when the octave changes while a key is held.

@@ -13,6 +13,17 @@ export default class RainRenderer {
     this.water = new Float32Array(96);
     this.energy = 0;
     this.sustainDown = false;
+    // A very fine atmospheric drizzle supplies the deep blue-violet field
+    // from the reference; notes add the long, bright musical streaks.
+    this.ambientDrops = Array.from({ length: 150 }, () => ({
+      x: Math.random(),
+      y: Math.random(),
+      speed: 0.12 + Math.random() * 0.34,
+      length: 0.025 + Math.random() * 0.17,
+      alpha: 0.2 + Math.random() * 0.28,
+      hue: this.hueAt(Math.random()),
+      phase: Math.random() * TAU,
+    }));
   }
 
   resize(width, height) {
@@ -23,26 +34,31 @@ export default class RainRenderer {
   noteOn(note, velocity = 90, color) {
     const strength = clamp(velocity / 127, 0.08, 1);
     const x = this.width * (0.08 + clamp((note - 21) / 87, 0, 1) * 0.84);
-    const hue =
-      typeof color?.hue === "number" ? color.hue : 214 + Math.random() * 44;
-    const count = 5 + Math.round(strength * 11);
+    const nativeHue = this.hueAt(x / this.width);
+    const hue = typeof color?.hue === "number" ? color.hue : nativeHue;
+    const count = 9 + Math.round(strength * 18);
     for (let i = 0; i < count; i++) {
       this.drops.push({
         x: x + (Math.random() - 0.5) * (14 + strength * 42),
-        y: -Math.random() * this.height * 0.28 - 4,
+        y: -Math.random() * this.height * 0.5 - 4,
         vx: (Math.random() - 0.5) * (8 + strength * 10),
         vy: 90 + Math.random() * 55,
         gravity: 240 + Math.random() * 180,
-        length: 10 + Math.random() * 23 + strength * 22,
-        width: 0.6 + Math.random() * 0.65 + strength * 0.5,
-        alpha: 0.32 + Math.random() * 0.34 + strength * 0.24,
+        length: this.height * (0.24 + Math.random() * 0.34 + strength * 0.12),
+        width: 0.75 + Math.random() * 0.9 + strength * 0.75,
+        alpha: 0.66 + Math.random() * 0.2 + strength * 0.14,
         hue: hue + (Math.random() - 0.5) * 28,
         strength,
         phase: Math.random() * TAU,
       });
     }
     this.energy = Math.min(1, this.energy + strength * 0.28);
-    if (this.drops.length > 950) this.drops.splice(0, this.drops.length - 950);
+    if (this.drops.length > 800) this.drops.splice(0, this.drops.length - 800);
+  }
+
+  hueAt(position) {
+    const x = clamp(position, 0, 1);
+    return x < 0.5 ? 230 - x * 50 : 205 + (x - 0.5) * 160;
   }
 
   noteOff() {}
@@ -55,7 +71,7 @@ export default class RainRenderer {
     this.time += dt;
     const w = this.width,
       h = this.height;
-    const horizon = h * 0.88;
+    const horizon = h * 0.8;
     this.energy *= Math.exp(-0.7 * dt);
     ctx.globalCompositeOperation = "source-over";
     const bg = ctx.createLinearGradient(0, 0, 0, h);
@@ -65,6 +81,7 @@ export default class RainRenderer {
     bg.addColorStop(1, "#08081a");
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, w, h);
+    this.drawAmbientRain(ctx, dt, w, h, horizon);
     this.updateDrops(ctx, dt, w, h, horizon);
     this.updateWater(dt);
     ctx.globalCompositeOperation = "lighter";
@@ -72,6 +89,34 @@ export default class RainRenderer {
     this.drawRipples(ctx, dt, w, h, horizon);
     this.drawSplashes(ctx, dt, w, h, horizon);
     ctx.globalCompositeOperation = "source-over";
+  }
+
+  drawAmbientRain(ctx, dt, w, h, horizon) {
+    ctx.globalCompositeOperation = "screen";
+    for (const drop of this.ambientDrops) {
+      drop.phase += dt * 1.4;
+      drop.y += drop.speed * dt;
+      if (drop.y > 0.84) {
+        drop.y = -drop.length / h - Math.random() * 0.18;
+        drop.x = Math.random();
+      }
+      const x = drop.x * w + Math.sin(drop.phase) * 1.8;
+      const y = drop.y * h;
+      if (y > horizon) continue;
+      const tail = Math.min(drop.length * h, Math.max(0, horizon - y));
+      const alpha = drop.alpha * (0.76 + this.energy * 0.5) * Math.min(1, (horizon - y) / 48);
+      ctx.strokeStyle = `hsla(${drop.hue},100%,58%,${alpha})`;
+      ctx.lineWidth = 0.55 + alpha * 1.25;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(x - 0.4, y - tail);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      ctx.fillStyle = `hsla(${drop.hue},100%,66%,${alpha * 0.72})`;
+      ctx.beginPath();
+      ctx.arc(x, y, 0.65 + alpha * 1.1, 0, TAU);
+      ctx.fill();
+    }
   }
 
   updateDrops(ctx, dt, w, h, horizon) {
@@ -83,8 +128,8 @@ export default class RainRenderer {
       drop.y += drop.vy * dt;
       const impactY =
         horizon - this.water[this.waterIndex(drop.x, w)] * h * 0.13;
-      const fadeTop = clamp((drop.y + 20) / 50, 0, 1);
-      const fadeBottom = clamp((impactY - drop.y) / 38, 0, 1);
+      const fadeTop = clamp((drop.y + 20) / 60, 0, 1);
+      const fadeBottom = clamp((impactY - drop.y) / 52, 0, 1);
       const alpha = drop.alpha * fadeTop * fadeBottom;
       const tail = drop.length * (0.65 + Math.min(1, drop.vy / 480));
       const gradient = ctx.createLinearGradient(
@@ -93,15 +138,24 @@ export default class RainRenderer {
         drop.x,
         drop.y + 3,
       );
-      gradient.addColorStop(0, `hsla(${drop.hue},85%,75%,0)`);
-      gradient.addColorStop(0.5, `hsla(${drop.hue},95%,70%,${alpha * 0.55})`);
-      gradient.addColorStop(1, `hsla(${drop.hue + 12},100%,91%,${alpha})`);
+      gradient.addColorStop(0, `hsla(${drop.hue},100%,54%,0)`);
+      gradient.addColorStop(0.68, `hsla(${drop.hue},100%,52%,${alpha * 0.62})`);
+      gradient.addColorStop(1, `hsla(${drop.hue + 12},100%,67%,${alpha})`);
       ctx.strokeStyle = gradient;
       ctx.lineWidth = drop.width;
+      ctx.lineCap = "round";
       ctx.beginPath();
       ctx.moveTo(drop.x - drop.vx * 0.018, drop.y - tail);
       ctx.lineTo(drop.x, drop.y);
       ctx.stroke();
+      const headGlow = ctx.createRadialGradient(drop.x, drop.y, 0, drop.x, drop.y, 2.5 + drop.strength * 4.5);
+      headGlow.addColorStop(0, `hsla(${drop.hue},100%,66%,${alpha * 0.68})`);
+      headGlow.addColorStop(0.38, `hsla(${drop.hue},100%,55%,${alpha * 0.26})`);
+      headGlow.addColorStop(1, `hsla(${drop.hue},100%,50%,0)`);
+      ctx.fillStyle = headGlow;
+      ctx.beginPath();
+      ctx.arc(drop.x, drop.y, 2.5 + drop.strength * 4.5, 0, TAU);
+      ctx.fill();
       if (drop.y >= impactY && drop.y < h + drop.length)
         this.impact(drop, horizon, w, h);
     }
@@ -211,16 +265,33 @@ export default class RainRenderer {
     ctx.globalAlpha = 0.1 + level * 0.22;
     for (let i = 0; i < 26; i++) {
       const u = (i + 0.5) / 26;
-      const x = u * w + Math.sin(this.time * 0.35 + i) * 4;
-      const y = horizon + 5 + Math.sin(i * 3 + this.time * 0.45) * 5;
-      const len =
-        5 + this.water[Math.floor(u * (this.water.length - 1))] * h * 0.7;
-      ctx.strokeStyle = i % 3 ? "rgba(113,165,255,.7)" : "rgba(205,188,255,.7)";
-      ctx.lineWidth = 1 + (i % 3) * 0.45;
-      ctx.beginPath();
-      ctx.moveTo(x - len / 2, y);
-      ctx.lineTo(x + len / 2, y);
-      ctx.stroke();
+      const x = u * w + Math.sin(this.time * 0.35 + i) * 3;
+      const surfaceY = horizon + 8 + Math.sin(i * 3 + this.time * 0.45) * 4;
+      const localWater = this.water[Math.floor(u * (this.water.length - 1))];
+      const hue = this.hueAt(u);
+      const len = 12 + localWater * h * 0.8;
+      ctx.lineCap = "round";
+      // Broken vertical reflection threads stretch down from the waterline.
+      for (let segment = 0; segment < 3; segment++) {
+        const top = surfaceY + segment * len * 0.34 + Math.sin(this.time * 1.5 + i * 2 + segment) * 3;
+        const segmentLength = len * (0.12 + localWater * 0.3) * (1 - segment * 0.16);
+        ctx.strokeStyle = `hsla(${hue},100%,${52 + segment * 3}%,${0.16 + level * 0.48})`;
+        ctx.lineWidth = 0.8 + (i % 4) * 0.35;
+        ctx.beginPath();
+        ctx.moveTo(x, top);
+        ctx.lineTo(x + Math.sin(this.time + i) * 1.2, top + segmentLength);
+        ctx.stroke();
+      }
+      if (i % 3 === 0) {
+        const radius = 1.2 + localWater * 5;
+        const bokeh = ctx.createRadialGradient(x, surfaceY + 6, 0, x, surfaceY + 6, radius * 3);
+        bokeh.addColorStop(0, `hsla(${hue},100%,67%,${0.14 + level * 0.4})`);
+        bokeh.addColorStop(1, `hsla(${hue},100%,55%,0)`);
+        ctx.fillStyle = bokeh;
+        ctx.beginPath();
+        ctx.arc(x, surfaceY + 6, radius * 3, 0, TAU);
+        ctx.fill();
+      }
     }
     ctx.globalAlpha = 1;
   }
@@ -229,7 +300,7 @@ export default class RainRenderer {
     for (const ripple of this.ripples) {
       ripple.radius += ripple.speed * dt;
       ripple.life -= dt * (0.46 + (ripple.radius / Math.max(1, w)) * 0.35);
-      const alpha = Math.max(0, ripple.life) * (0.22 + ripple.strength * 0.34);
+      const alpha = Math.max(0, ripple.life) * (0.035 + ripple.strength * 0.065);
       ctx.beginPath();
       ctx.ellipse(
         ripple.x,
@@ -240,21 +311,8 @@ export default class RainRenderer {
         0,
         TAU,
       );
-      ctx.strokeStyle = `hsla(${ripple.hue},100%,78%,${alpha})`;
+      ctx.strokeStyle = `hsla(${ripple.hue},100%,60%,${alpha})`;
       ctx.lineWidth = Math.max(0.55, 1.5 * ripple.life);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.ellipse(
-        ripple.x,
-        ripple.y + 1,
-        ripple.radius * 0.68,
-        ripple.radius * 0.12,
-        0,
-        0,
-        TAU,
-      );
-      ctx.strokeStyle = `hsla(${ripple.hue + 8},100%,84%,${alpha * 0.42})`;
-      ctx.lineWidth = 0.7;
       ctx.stroke();
     }
     this.ripples = this.ripples.filter(
@@ -269,7 +327,7 @@ export default class RainRenderer {
       drop.x += drop.vx * dt;
       drop.y += drop.vy * dt;
       const fade = Math.max(0, 1 - drop.age / drop.life);
-      ctx.fillStyle = `hsla(${drop.hue},100%,82%,${fade * drop.strength})`;
+      ctx.fillStyle = `hsla(${drop.hue},100%,66%,${fade * drop.strength * 0.7})`;
       ctx.beginPath();
       ctx.arc(drop.x, drop.y, drop.size * fade, 0, TAU);
       ctx.fill();
